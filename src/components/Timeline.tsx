@@ -37,19 +37,48 @@ export default function Timeline({ incidentId, initialEvents = [] }: TimelinePro
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [events.length]);
 
-  // TODO: Subscribe to Supabase Realtime for live events
-  // useEffect(() => {
-  //   const supabase = getSupabaseBrowserClient();
-  //   const channel = supabase
-  //     .channel(`incident-${incidentId}`)
-  //     .on(
-  //       "postgres_changes",
-  //       { event: "INSERT", schema: "public", table: "incident_events", filter: `incident_id=eq.${incidentId}` },
-  //       (payload) => setEvents((prev) => [...prev, payload.new as IncidentEvent])
-  //     )
-  //     .subscribe();
-  //   return () => { supabase.removeChannel(channel); };
-  // }, [incidentId]);
+  // Subscribe to Supabase Realtime for live event streaming
+  useEffect(() => {
+    let channel: ReturnType<typeof import("@supabase/supabase-js").createClient extends (...args: unknown[]) => infer R ? R : never> | null = null;
+
+    async function subscribe() {
+      try {
+        const { getSupabaseBrowserClient } = await import("@/lib/db");
+        const supabase = getSupabaseBrowserClient();
+        channel = supabase
+          .channel(`incident-timeline-${incidentId}`)
+          .on(
+            "postgres_changes" as never,
+            {
+              event: "INSERT",
+              schema: "public",
+              table: "incident_events",
+              filter: `incident_id=eq.${incidentId}`,
+            },
+            (payload: { new: IncidentEvent }) => {
+              setEvents((prev) => {
+                // Deduplicate by id
+                if (prev.some((e) => e.id === payload.new.id)) return prev;
+                return [...prev, payload.new];
+              });
+            }
+          )
+          .subscribe();
+      } catch {
+        // Supabase not configured — fall back to polling (handled by useIncident hook)
+      }
+    }
+
+    subscribe();
+
+    return () => {
+      if (channel) {
+        import("@/lib/db").then(({ getSupabaseBrowserClient }) => {
+          getSupabaseBrowserClient().removeChannel(channel as never);
+        });
+      }
+    };
+  }, [incidentId]);
 
   const formatTime = (ts: string) => {
     try {

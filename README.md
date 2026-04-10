@@ -107,28 +107,47 @@ cloudscape/
 │   ├── app/
 │   │   ├── page.tsx                    # Landing page
 │   │   ├── layout.tsx                  # Root layout + fonts
-│   │   ├── globals.css                 # Tailwind + custom theme
-│   │   ├── dashboard/page.tsx          # Incident list
+│   │   ├── providers.tsx               # Client providers (Toast, ErrorBoundary)
+│   │   ├── loading.tsx                 # Global loading state
+│   │   ├── not-found.tsx               # Custom 404
+│   │   ├── globals.css                 # Tailwind + custom dark SRE theme
+│   │   ├── dashboard/page.tsx          # Incident list + health overview
 │   │   ├── incident/[id]/page.tsx      # Live investigation view
-│   │   └── setup/page.tsx              # AWS connection wizard (TODO)
+│   │   ├── incident/[id]/postmortem/   # Post-mortem viewer
+│   │   ├── setup/page.tsx              # AWS connection wizard
+│   │   ├── login/page.tsx              # Auth page
+│   │   └── api/
+│   │       ├── incidents/              # CRUD + investigate + postmortem
+│   │       ├── remediations/[id]/      # Mark applied/skipped
+│   │       ├── aws/connect/            # Test IAM role connection
+│   │       └── webhooks/cloudwatch/    # SNS alarm intake
+│   ├── components/
+│   │   ├── ErrorBoundary.tsx           # Catches render errors
+│   │   ├── HealthOverview.tsx          # Dashboard stat cards
+│   │   ├── InvestigateModal.tsx        # Manual incident creation
+│   │   ├── MetricChart.tsx             # SVG sparkline for metrics
+│   │   ├── Navbar.tsx                  # Shared navigation bar
+│   │   ├── RemediationCard.tsx         # Fix option with CLI commands
+│   │   ├── ScoreGauge.tsx              # Circular confidence score
+│   │   ├── Skeletons.tsx               # Loading skeleton states
+│   │   ├── StatusBadge.tsx             # Incident status indicator
+│   │   ├── Timeline.tsx                # Real-time event timeline
+│   │   └── Toast.tsx                   # Notification system
+│   ├── hooks/
+│   │   ├── useIncident.ts              # Single incident data + actions
+│   │   └── useIncidents.ts             # Incident list + create
 │   ├── lib/
-│   │   ├── aws/
-│   │   │   ├── client.ts              # STS AssumeRole + SDK clients
-│   │   │   └── collectors.ts          # CloudWatch, Logs, Trail, ECS, RDS
-│   │   ├── perplexity/
-│   │   │   ├── client.ts             # Agent API wrapper
-│   │   │   ├── analyze.ts            # Root cause analysis prompt
-│   │   │   ├── remediate.ts          # Remediation generation prompt
-│   │   │   └── postmortem.ts         # Post-mortem generation prompt
-│   │   ├── investigation.ts          # Orchestrator pipeline
-│   │   └── db.ts                     # Supabase client
-│   └── types/
-│       └── index.ts                   # Shared TypeScript types
+│   │   ├── aws/                        # STS AssumeRole + data collectors
+│   │   ├── perplexity/                 # Agent API client + prompts
+│   │   ├── investigation.ts            # Orchestrator pipeline
+│   │   ├── db.ts                       # Supabase client
+│   │   └── utils.ts                    # cn() helper
+│   ├── types/index.ts                  # Shared TypeScript types
+│   └── middleware.ts                   # Auth redirect
 ├── cloudformation/
-│   └── cloudscape-role.yaml           # One-click IAM role setup
+│   └── cloudscape-role.yaml            # One-click IAM role setup
 ├── supabase/
-│   └── migrations/
-│       └── 001_initial.sql            # Database schema
+│   └── migrations/001_initial.sql      # Database schema
 └── package.json
 ```
 
