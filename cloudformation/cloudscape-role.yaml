@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Cloudscape read-only access role.
+  Creates an IAM role that Cloudscape assumes to read CloudWatch, CloudTrail,
+  ECS, and RDS data during incident investigations. No write access.
+
+Parameters:
+  CloudscapeAccountId:
+    Type: String
+    Description: 'Cloudscape AWS account ID (provided during setup)'
+  ExternalId:
+    Type: String
+    Description: 'Unique external ID (provided during setup)'
+
+Resources:
+  CloudscapeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CloudscapeReadOnly
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${CloudscapeAccountId}:root'
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      ManagedPolicyArns:
+        # Read-only — cannot modify any resources
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+      Policies:
+        - PolicyName: CloudWatchLogsRead
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:GetLogEvents
+                  - logs:FilterLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: '*'
+
+Outputs:
+  RoleArn:
+    Value: !GetAtt CloudscapeRole.Arn
+    Description: 'Paste this ARN into Cloudscape setup'
