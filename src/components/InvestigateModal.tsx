@@ -4,22 +4,19 @@ import { useState } from "react";
 import { X, Zap, AlertTriangle } from "lucide-react";
 
 interface InvestigateModalProps {
-  isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: { symptom: string; severity: string }) => void;
+  onSubmit: (symptom: string, severity: string) => void;
 }
 
-export function InvestigateModal({ isOpen, onClose, onSubmit }: InvestigateModalProps) {
+export default function InvestigateModal({ onClose, onSubmit }: InvestigateModalProps) {
   const [symptom, setSymptom] = useState("");
   const [severity, setSeverity] = useState("sev2");
   const [loading, setLoading] = useState(false);
 
-  if (!isOpen) return null;
-
   const handleSubmit = async () => {
     if (!symptom.trim()) return;
     setLoading(true);
-    await onSubmit({ symptom, severity });
+    await onSubmit(symptom, severity);
     setLoading(false);
     setSymptom("");
     onClose();

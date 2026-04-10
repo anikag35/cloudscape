@@ -14,7 +14,7 @@ const sevConfig: Record<Severity, { color: string; bg: string }> = {
   sev3: { color: "text-[var(--color-sev3)]", bg: "bg-[var(--color-sev3)]" },
 };
 
-export function StatusBadge({ status }: { status: IncidentStatus }) {
+export default function StatusBadge({ status }: { status: IncidentStatus }) {
   const config = statusConfig[status];
   const Icon = config.icon;
   return (

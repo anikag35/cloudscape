@@ -1,258 +1,111 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import {
-  Zap,
-  ArrowLeft,
-  Download,
-  Copy,
-  Check,
-  RefreshCw,
-  Clock,
-} from "lucide-react";
+import { use, useState, useEffect } from "react";
+import { ArrowLeft, Zap, Copy, Check, Loader2, AlertTriangle } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
-// TODO: Fetch from /api/incidents/[id]/postmortem
-const MOCK_POSTMORTEM = `# Post-Mortem: RDS Connection Exhaustion After ECS Auto-Scale
-
-**Date:** April 10, 2026
-**Duration:** 33 minutes
-**Severity:** SEV1
-**Author:** Cloudscape AI (auto-generated, requires human review)
-
-## Summary
-
-On April 10, 2026 at 03:38 UTC, an ECS auto-scaling event increased the API service from 4 to 15 tasks. Each task opened a connection pool of 20 database connections, causing total connections (300) to exceed the RDS db.t3.medium max_connections limit (200). This resulted in connection refusals and 502 errors for approximately 33 minutes until the task count was manually reduced.
-
-## Impact
-
-- **Users affected:** All users of the API service (~12,000 active sessions)
-- **Duration:** 03:38 – 04:11 UTC (33 minutes)
-- **Error rate:** 5xx errors increased from 0.01% to 78% of all requests
-- **Revenue impact:** Estimated $8,400 in lost transactions during checkout downtime
-
-## Root Cause
-
-The ECS service auto-scaling policy triggered a scale-up from 4 to 15 tasks based on CPU utilization exceeding the 70% threshold. Each ECS task runs a Node.js application configured with a PostgreSQL connection pool of 20 connections (the default for the \`pg-pool\` library). The total connections (15 × 20 = 300) exceeded the RDS db.t3.medium instance's max_connections parameter (200), which is determined by the instance's memory allocation.
-
-RDS began rejecting new connections with \`FATAL: too many connections for role "api"\`, causing the application to return 502 errors to end users.
-
-## Trigger
-
-ECS auto-scaling policy \`api-cpu-scaling\` triggered at 03:35 UTC when average CPU utilization exceeded 70% for 3 consecutive minutes. The policy's maximum capacity was set to 20 tasks with no guardrails linking compute scaling to database connection capacity.
-
-## Detection
-
-- **03:42 UTC** — CloudWatch alarm \`api-5xx-high\` triggered (threshold: >50 5xx errors per minute)
-- **Detection time:** 4 minutes after user impact began
-- The alarm correctly fired, but the 4-minute detection gap is due to the 5-minute CloudWatch aggregation period combined with the alarm evaluation period.
-
-## Timeline
-
-| Time (UTC) | Event |
-|---|---|
-| 03:35:00 | ECS auto-scaling policy triggers: desired count 4 → 15 |
-| 03:35:30 | 11 new ECS tasks begin starting |
-| 03:36:15 | New tasks pass health checks, begin receiving traffic |
-| 03:37:00 | Total DB connections reach 280 (approaching limit) |
-| 03:38:00 | DB connections hit 300, exceeding max_connections (200) |
-| 03:38:05 | First connection refusal errors in application logs |
-| 03:38:30 | 5xx error rate exceeds 50% |
-| 03:42:00 | CloudWatch alarm fires, Cloudscape investigation begins |
-| 03:42:28 | Cloudscape identifies root cause (94% confidence) |
-| 03:45:00 | On-call engineer notified, reviews Cloudscape findings |
-| 03:48:00 | Engineer applies fix: \`aws ecs update-service --desired-count 6\` |
-| 03:52:00 | Excess tasks drain, DB connections drop to 120 |
-| 04:11:00 | Error rate returns to baseline, incident marked resolved |
-
-## Resolution
-
-The on-call engineer reduced the ECS desired count from 15 to 6, bringing total database connections (120) well under the max_connections limit (200). Service recovered within 4 minutes of the fix being applied as excess tasks drained and connections were released.
-
-## Action Items
-
-| Action | Type | Owner | Due Date |
-|---|---|---|---|
-| Add RDS Proxy for connection pooling | Prevent | TBD | 2026-04-17 |
-| Set max_connections alarm on RDS | Detect | TBD | 2026-04-12 |
-| Cap ECS auto-scaling maximum to 8 tasks | Prevent | TBD | 2026-04-11 |
-| Reduce app connection pool size from 20 to 5 | Prevent | TBD | 2026-04-14 |
-| Add runbook for DB connection exhaustion | Mitigate | TBD | 2026-04-18 |
-
-## Lessons Learned
-
-### What went well
-- CloudWatch alarm fired correctly and within the evaluation period
-- Cloudscape identified the root cause in under 60 seconds
-- Remediation command was copy-pasteable and applied quickly
-- No data loss occurred
-
-### What went wrong
-- ECS auto-scaling had no awareness of downstream database capacity limits
-- Connection pool size (20) was the library default — never tuned for our instance
-- No alarm existed on RDS connection count — only on 5xx errors (lagging indicator)
-- The 4-minute detection gap allowed error rate to reach 78% before alerting
-
-### Where we got lucky
-- The incident occurred at 03:38 UTC (low traffic) — during peak hours, impact would have been 10x
-- RDS did not crash from the connection surge — it rejected connections gracefully
-- No data corruption occurred despite connection failures mid-transaction
-
----
-*This post-mortem was auto-generated by Cloudscape. Review and assign action item owners before publishing.*`;
-
-export default function PostMortemPage() {
+export default function PostMortemPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const [content, setContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    async function fetchPostMortem() {
+      try {
+        const res = await fetch(`/api/incidents/${id}/postmortem`);
+        if (!res.ok) throw new Error("Post-mortem not found");
+        const data = await res.json();
+        setContent(data.content);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchPostMortem();
+  }, [id]);
+
   const copyMarkdown = () => {
-    navigator.clipboard.writeText(MOCK_POSTMORTEM);
+    if (!content) return;
+    navigator.clipboard.writeText(content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Simple markdown-to-HTML renderer
-  const renderMarkdown = (md: string) => {
-    return md
-      .split("\n")
-      .map((line, i) => {
-        // H1
-        if (line.startsWith("# "))
-          return (
-            <h1 key={i} className="text-3xl font-bold mt-8 mb-4" style={{ fontFamily: "var(--font-display)" }}>
-              {line.slice(2)}
-            </h1>
-          );
-        // H2
-        if (line.startsWith("## "))
-          return (
-            <h2 key={i} className="text-xl font-bold mt-8 mb-3 text-[var(--color-accent)]" style={{ fontFamily: "var(--font-display)" }}>
-              {line.slice(3)}
-            </h2>
-          );
-        // H3
-        if (line.startsWith("### "))
-          return (
-            <h3 key={i} className="text-lg font-semibold mt-6 mb-2">
-              {line.slice(4)}
-            </h3>
-          );
-        // Bold line (** **)
-        if (line.startsWith("**") && line.includes(":**"))
-          return (
-            <p key={i} className="text-sm mb-1">
-              <strong className="text-[var(--color-text)]">{line.split(":**")[0].replace(/\*\*/g, "")}:</strong>
-              <span className="text-[var(--color-text-muted)]">{line.split(":**")[1]?.replace(/\*\*/g, "")}</span>
-            </p>
-          );
-        // Table row
-        if (line.startsWith("|") && !line.startsWith("|---")) {
-          const cells = line.split("|").filter(Boolean).map((c) => c.trim());
-          return (
-            <tr key={i} className="border-b border-[var(--color-border)]">
-              {cells.map((cell, j) => (
-                <td key={j} className="px-3 py-2 text-sm text-[var(--color-text-muted)]">
-                  {cell}
-                </td>
-              ))}
-            </tr>
-          );
-        }
-        // Table separator — skip
-        if (line.startsWith("|---")) return null;
-        // Bullet
-        if (line.startsWith("- "))
-          return (
-            <li key={i} className="text-sm text-[var(--color-text-muted)] ml-4 mb-1 list-disc">
-              {line.slice(2)}
-            </li>
-          );
-        // Horizontal rule
-        if (line.startsWith("---"))
-          return <hr key={i} className="border-[var(--color-border)] my-8" />;
-        // Italic/note
-        if (line.startsWith("*") && line.endsWith("*"))
-          return (
-            <p key={i} className="text-xs text-[var(--color-text-dim)] italic mt-4">
-              {line.replace(/\*/g, "")}
-            </p>
-          );
-        // Empty line
-        if (!line.trim()) return <div key={i} className="h-2" />;
-        // Regular paragraph
-        return (
-          <p key={i} className="text-sm text-[var(--color-text-muted)] leading-relaxed mb-2">
-            {line}
-          </p>
-        );
-      })
-      .filter(Boolean);
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center">
+        <Loader2 className="w-6 h-6 text-[var(--color-accent)] animate-spin" />
+      </div>
+    );
+  }
 
-  // Wrap table rows in <table>
-  const rendered = renderMarkdown(MOCK_POSTMORTEM);
-  const elements: React.ReactNode[] = [];
-  let tableRows: React.ReactNode[] = [];
-  let inTable = false;
-
-  rendered.forEach((el: any, i: number) => {
-    if (el?.type === "tr") {
-      if (!inTable) inTable = true;
-      tableRows.push(el);
-    } else {
-      if (inTable) {
-        elements.push(
-          <div key={`table-${i}`} className="overflow-x-auto my-4">
-            <table className="w-full border border-[var(--color-border)] rounded-lg overflow-hidden">
-              <tbody>{tableRows}</tbody>
-            </table>
-          </div>
-        );
-        tableRows = [];
-        inTable = false;
-      }
-      elements.push(el);
-    }
-  });
-  if (tableRows.length) {
-    elements.push(
-      <div key="table-final" className="overflow-x-auto my-4">
-        <table className="w-full border border-[var(--color-border)] rounded-lg overflow-hidden">
-          <tbody>{tableRows}</tbody>
-        </table>
+  if (error || !content) {
+    return (
+      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="w-8 h-8 mx-auto mb-3 text-[var(--color-danger)]" />
+          <p className="text-sm text-[var(--color-text-muted)] mb-4">{error || "No post-mortem yet"}</p>
+          <Link href={`/incident/${id}`} className="text-sm text-[var(--color-accent)]">← Back to incident</Link>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
-      {/* Nav */}
-      <nav className="flex items-center justify-between px-8 py-5 max-w-7xl mx-auto border-b border-[var(--color-border)]">
-        <Link href="/incident/inc-001" className="flex items-center gap-4">
-          <ArrowLeft className="w-5 h-5 text-[var(--color-text-muted)]" />
-          <span className="text-sm text-[var(--color-text-muted)]">Back to incident</span>
-        </Link>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={copyMarkdown}
-            className="bg-[var(--color-surface)] border border-[var(--color-border)] text-sm px-4 py-2 rounded-lg hover:border-[var(--color-border-bright)] transition inline-flex items-center gap-2"
-          >
-            {copied ? <Check className="w-4 h-4 text-[var(--color-success)]" /> : <Copy className="w-4 h-4" />}
-            {copied ? "Copied" : "Copy Markdown"}
-          </button>
-          <button className="bg-[var(--color-surface)] border border-[var(--color-border)] text-sm px-4 py-2 rounded-lg hover:border-[var(--color-border-bright)] transition inline-flex items-center gap-2">
-            <Download className="w-4 h-4" />
-            Export PDF
-          </button>
-          <button className="bg-[var(--color-surface)] border border-[var(--color-border)] text-sm px-4 py-2 rounded-lg hover:border-[var(--color-border-bright)] transition inline-flex items-center gap-2">
-            <RefreshCw className="w-4 h-4" />
-            Regenerate
-          </button>
+      <nav className="flex items-center justify-between px-8 py-5 max-w-5xl mx-auto border-b border-[var(--color-border)]">
+        <div className="flex items-center gap-4">
+          <Link href={`/incident/${id}`} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition">
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)] flex items-center justify-center">
+              <Zap className="w-5 h-5 text-black" />
+            </div>
+            <span className="text-lg font-semibold" style={{ fontFamily: "var(--font-display)" }}>Post-Mortem</span>
+          </div>
         </div>
+        <button
+          onClick={copyMarkdown}
+          className="bg-[var(--color-surface)] border border-[var(--color-border)] text-sm px-4 py-2 rounded-lg hover:border-[var(--color-border-bright)] transition inline-flex items-center gap-2"
+        >
+          {copied ? <Check className="w-4 h-4 text-[var(--color-success)]" /> : <Copy className="w-4 h-4" />}
+          {copied ? "Copied" : "Copy Markdown"}
+        </button>
       </nav>
 
       <main className="max-w-3xl mx-auto px-8 py-12">
-        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-10">
-          {elements}
+        <article
+          className="
+            [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4 [&_h1]:tracking-tight
+            [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-10 [&_h2]:mb-3 [&_h2]:text-[var(--color-accent)]
+            [&_h3]:text-base [&_h3]:font-medium [&_h3]:mt-6 [&_h3]:mb-2
+            [&_p]:text-sm [&_p]:leading-relaxed [&_p]:text-[var(--color-text-muted)] [&_p]:mb-4
+            [&_strong]:text-[var(--color-text)]
+            [&_code]:text-[var(--color-accent)] [&_code]:text-xs [&_code]:bg-[var(--color-surface)] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded
+            [&_table]:w-full [&_table]:text-sm [&_table]:mt-4 [&_table]:mb-6
+            [&_th]:text-left [&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wider [&_th]:text-[var(--color-text-dim)] [&_th]:border-b [&_th]:border-[var(--color-border)] [&_th]:pb-2 [&_th]:pr-4
+            [&_td]:py-2 [&_td]:pr-4 [&_td]:text-[var(--color-text-muted)] [&_td]:border-b [&_td]:border-[var(--color-border)]/50
+            [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:text-sm [&_ul]:text-[var(--color-text-muted)] [&_ul]:space-y-1 [&_ul]:mb-4
+            [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:text-sm [&_ol]:text-[var(--color-text-muted)] [&_ol]:space-y-1 [&_ol]:mb-4
+            [&_li]:leading-relaxed
+            [&_hr]:border-[var(--color-border)] [&_hr]:my-8
+            [&_blockquote]:border-l-2 [&_blockquote]:border-[var(--color-accent)] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-[var(--color-text-dim)]
+            [&_a]:text-[var(--color-accent)] [&_a]:underline
+          "
+          style={{ fontFamily: "var(--font-body)" }}
+        >
+          <ReactMarkdown>{content}</ReactMarkdown>
+        </article>
+
+        <div className="mt-12 pt-8 border-t border-[var(--color-border)] text-center">
+          <p className="text-xs text-[var(--color-text-dim)] italic">
+            Auto-generated by Cloudscape. Review and assign action item owners before publishing.
+          </p>
         </div>
       </main>
     </div>

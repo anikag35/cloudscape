@@ -1,98 +1,81 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { use } from "react";
 import {
   Zap,
   ArrowLeft,
-  Copy,
-  Check,
-  AlertTriangle,
   Shield,
   Clock,
   FileText,
   ExternalLink,
+  Activity,
+  Loader2,
+  AlertTriangle,
 } from "lucide-react";
+import { useIncident } from "@/hooks/useIncident";
+import Timeline from "@/components/Timeline";
+import RemediationCard from "@/components/RemediationCard";
+import MetricChart from "@/components/MetricChart";
+import ScoreGauge from "@/components/ScoreGauge";
+import StatusBadge from "@/components/StatusBadge";
 
-// TODO: Replace with real data from Supabase + investigation engine
-const MOCK_EVENTS = [
-  { time: "03:42:00", source: "system", content: "CloudWatch alarm triggered: \"5xx > 50/min\"", type: "info" },
-  { time: "03:42:05", source: "system", content: "Assuming IAM role into your AWS account...", type: "info" },
-  { time: "03:42:08", source: "cloudwatch", content: "Pulling CloudWatch metrics (ECS CPU, RDS connections, ALB 5xx)...", type: "info" },
-  { time: "03:42:12", source: "cloudwatch", content: "DB connections spiked from 45 → 300 at 03:38 (max_connections: 200)", type: "metric_spike" },
-  { time: "03:42:15", source: "cloudwatch", content: "ALB 5xx errors: 0 → 847/min starting at 03:39", type: "metric_spike" },
-  { time: "03:42:18", source: "cloudtrail", content: "ECS UpdateService at 03:35 — desired count changed from 4 → 15", type: "deployment" },
-  { time: "03:42:22", source: "agent", content: "Searching web for \"RDS connection exhaustion ECS auto-scaling\"...", type: "analysis" },
-  { time: "03:42:25", source: "agent", content: "Checking https://health.aws.amazon.com for active outages...", type: "analysis" },
-  { time: "03:42:28", source: "agent", content: "ROOT CAUSE (94% confidence): ECS auto-scaling event created 11 new tasks, each opening a connection pool of 20. Total connections (300) exceeded RDS db.t3.medium max_connections (200), causing connection refusals and 502 errors.", type: "analysis" },
-  { time: "03:42:30", source: "system", content: "3 remediation options generated", type: "remediation" },
+const phaseSteps = [
+  { key: "collecting", label: "Collecting" },
+  { key: "analyzing", label: "Analyzing" },
+  { key: "remediating", label: "Remediating" },
+  { key: "documenting", label: "Documenting" },
+  { key: "complete", label: "Complete" },
 ];
 
-const MOCK_REMEDIATIONS = [
-  {
-    title: "Scale ECS to safe task count",
-    description: "Reduce ECS desired count to 6 tasks, keeping total DB connections under max_connections limit.",
-    commands: ["aws ecs update-service \\\n  --cluster prod \\\n  --service api \\\n  --desired-count 6"],
-    risk: "safe" as const,
-    cost: "No change",
-    timeframe: "immediate" as const,
-  },
-  {
-    title: "Resize RDS to db.r6g.large",
-    description: "Increases max_connections from 200 to 800. Requires a brief reboot (~30s downtime with Multi-AZ).",
-    commands: ["aws rds modify-db-instance \\\n  --db-instance-identifier db-prod-1 \\\n  --db-instance-class db.r6g.large \\\n  --apply-immediately"],
-    risk: "caution" as const,
-    cost: "+$180/mo",
-    timeframe: "immediate" as const,
-  },
-  {
-    title: "Add RDS Proxy for connection pooling",
-    description: "RDS Proxy pools connections across all ECS tasks, preventing exhaustion regardless of task count. Long-term fix.",
-    commands: ["# See generated Terraform below"],
-    risk: "safe" as const,
-    cost: "+$21/mo",
-    timeframe: "long_term" as const,
-    terraform: `resource "aws_db_proxy" "api" {
-  name                   = "api-proxy"
-  debug_logging          = false
-  engine_family          = "POSTGRESQL"
-  idle_client_timeout    = 1800
-  require_tls            = true
-  role_arn               = aws_iam_role.rds_proxy.arn
-  vpc_subnet_ids         = var.private_subnet_ids
+export default function IncidentPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const {
+    incident,
+    events,
+    remediations,
+    postmortem,
+    loading,
+    error,
+    triggerInvestigation,
+    generatePostMortem,
+    updateRemediation,
+  } = useIncident(id);
 
-  auth {
-    auth_scheme = "SECRETS"
-    iam_auth    = "DISABLED"
-    secret_arn  = aws_secretsmanager_secret.db.arn
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center">
+        <div className="text-center">
+          <Activity className="w-8 h-8 mx-auto mb-3 text-[var(--color-accent)] animate-spin" />
+          <p className="text-sm text-[var(--color-text-muted)]">Loading incident...</p>
+        </div>
+      </div>
+    );
   }
-}`,
-  },
-];
 
-const riskColors = {
-  safe: { bg: "bg-[var(--color-success-dim)]", text: "text-[var(--color-success)]", label: "Safe" },
-  caution: { bg: "bg-[var(--color-warning-dim)]", text: "text-[var(--color-warning)]", label: "Caution" },
-  dangerous: { bg: "bg-[var(--color-danger-dim)]", text: "text-[var(--color-danger)]", label: "Dangerous" },
-};
+  if (error || !incident) {
+    return (
+      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="w-8 h-8 mx-auto mb-3 text-[var(--color-danger)]" />
+          <p className="text-sm text-[var(--color-text-muted)]">{error || "Incident not found"}</p>
+          <Link href="/dashboard" className="text-sm text-[var(--color-accent)] mt-4 inline-block">
+            ← Back to dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
-const sourceColors: Record<string, string> = {
-  system: "text-[var(--color-text-dim)]",
-  cloudwatch: "text-[var(--color-accent)]",
-  cloudtrail: "text-[var(--color-sev3)]",
-  logs: "text-[var(--color-warning)]",
-  agent: "text-[var(--color-success)]",
-  user: "text-[var(--color-text)]",
-};
+  const rootCause = incident.root_cause as {
+    root_cause: string;
+    confidence: number;
+    category: string;
+    is_aws_outage: boolean;
+    known_issue_url: string | null;
+  } | null;
 
-export default function IncidentPage() {
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
-
-  const copyCommand = (cmd: string, idx: number) => {
-    navigator.clipboard.writeText(cmd);
-    setCopiedIdx(idx);
-    setTimeout(() => setCopiedIdx(null), 2000);
-  };
+  const currentPhaseIdx = phaseSteps.findIndex((s) => s.key === incident.phase);
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
@@ -102,131 +85,170 @@ export default function IncidentPage() {
           <Link href="/dashboard" className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-[var(--color-sev1)] pulse-live" />
-            <h1 className="font-semibold" style={{ fontFamily: "var(--font-display)" }}>
-              RDS connection exhaustion after ECS auto-scale
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-2.5 h-2.5 rounded-full ${
+                incident.status !== "resolved" ? "bg-[var(--color-sev1)] pulse-live" : "bg-[var(--color-success)]"
+              }`}
+            />
+            <h1 className="font-semibold truncate max-w-lg" style={{ fontFamily: "var(--font-display)" }}>
+              {incident.title}
             </h1>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-[var(--color-text-dim)] font-mono">SEV1</span>
-          <button className="bg-[var(--color-surface)] border border-[var(--color-border)] text-sm px-4 py-2 rounded-lg hover:border-[var(--color-border-bright)] transition inline-flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            Generate Post-Mortem
-          </button>
+          <StatusBadge status={incident.status} />
+          <span className="text-xs text-[var(--color-text-dim)] font-mono uppercase">{incident.severity}</span>
+          {!postmortem && rootCause && (
+            <button
+              onClick={generatePostMortem}
+              className="bg-[var(--color-surface)] border border-[var(--color-border)] text-sm px-4 py-2 rounded-lg hover:border-[var(--color-border-bright)] transition inline-flex items-center gap-2"
+            >
+              <FileText className="w-4 h-4" />
+              Generate Post-Mortem
+            </button>
+          )}
+          {postmortem && (
+            <Link
+              href={`/incident/${id}/postmortem`}
+              className="bg-[var(--color-accent)] text-black text-sm px-4 py-2 rounded-lg hover:brightness-110 transition inline-flex items-center gap-2"
+            >
+              <FileText className="w-4 h-4" />
+              View Post-Mortem
+            </Link>
+          )}
         </div>
       </nav>
 
+      {/* Phase progress bar */}
+      <div className="max-w-7xl mx-auto px-8 py-4 border-b border-[var(--color-border)]">
+        <div className="flex items-center gap-2">
+          {phaseSteps.map((step, i) => (
+            <div key={step.key} className="flex items-center gap-2 flex-1">
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium shrink-0 ${
+                  i <= currentPhaseIdx
+                    ? "bg-[var(--color-accent)] text-black"
+                    : "bg-[var(--color-surface)] text-[var(--color-text-dim)] border border-[var(--color-border)]"
+                }`}
+              >
+                {i < currentPhaseIdx ? "✓" : i + 1}
+              </div>
+              <span
+                className={`text-xs whitespace-nowrap ${
+                  i <= currentPhaseIdx ? "text-[var(--color-text)]" : "text-[var(--color-text-dim)]"
+                }`}
+              >
+                {step.label}
+              </span>
+              {i < phaseSteps.length - 1 && (
+                <div className={`flex-1 h-px ${i < currentPhaseIdx ? "bg-[var(--color-accent)]" : "bg-[var(--color-border)]"}`} />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
       <main className="max-w-7xl mx-auto px-8 py-8">
+        {/* Root cause banner */}
+        {rootCause && (
+          <div className="bg-[var(--color-success-dim)] border border-[var(--color-success)]/30 rounded-xl p-5 mb-8 flex items-start gap-4">
+            <ScoreGauge score={Math.round(rootCause.confidence * 100)} label="Confidence" size={64} />
+            <div className="flex-1">
+              <h2 className="font-semibold text-[var(--color-success)] mb-1">Root Cause Identified</h2>
+              <p className="text-sm text-[var(--color-text)] leading-relaxed">{rootCause.root_cause}</p>
+              <div className="flex items-center gap-4 mt-2 text-xs text-[var(--color-text-dim)]">
+                <span className="px-2 py-0.5 rounded-full bg-[var(--color-surface)] text-[var(--color-text-muted)]">
+                  {rootCause.category}
+                </span>
+                {rootCause.is_aws_outage && (
+                  <span className="px-2 py-0.5 rounded-full bg-[var(--color-warning-dim)] text-[var(--color-warning)]">
+                    AWS outage involved
+                  </span>
+                )}
+                {rootCause.known_issue_url && (
+                  <a
+                    href={rootCause.known_issue_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[var(--color-accent)] hover:underline inline-flex items-center gap-1"
+                  >
+                    Known issue <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* No investigation yet */}
+        {!rootCause && events.length === 0 && (
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-8 mb-8 text-center">
+            <Activity className="w-8 h-8 mx-auto mb-3 text-[var(--color-text-dim)]" />
+            <p className="text-[var(--color-text-muted)] mb-4">No investigation running yet</p>
+            <button
+              onClick={triggerInvestigation}
+              className="bg-[var(--color-accent)] text-black px-6 py-2.5 rounded-lg font-medium hover:brightness-110 transition inline-flex items-center gap-2"
+            >
+              <Zap className="w-4 h-4" />
+              Start Investigation
+            </button>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           {/* Timeline — left column */}
           <div className="lg:col-span-3">
-            <div className="flex items-center gap-2 mb-6">
+            <div className="flex items-center gap-2 mb-4">
               <Clock className="w-4 h-4 text-[var(--color-text-muted)]" />
               <h2 className="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
                 Investigation Timeline
               </h2>
-              <div className="w-2 h-2 rounded-full bg-[var(--color-success)] pulse-live ml-2" />
-              <span className="text-xs text-[var(--color-text-dim)]">Live</span>
+              {incident.status !== "resolved" && (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-[var(--color-success)] pulse-live ml-2" />
+                  <span className="text-xs text-[var(--color-text-dim)]">Live</span>
+                </>
+              )}
             </div>
 
-            <div className="space-y-1">
-              {MOCK_EVENTS.map((event, i) => {
-                const isRootCause = event.content.startsWith("ROOT CAUSE");
-                return (
-                  <div
-                    key={i}
-                    className={`flex gap-3 py-2 px-3 rounded-lg animate-slide-in ${
-                      isRootCause
-                        ? "bg-[var(--color-success-dim)] border border-[var(--color-success)]/30"
-                        : "hover:bg-[var(--color-surface)]"
-                    }`}
-                    style={{ animationDelay: `${i * 80}ms` }}
-                  >
-                    <span className="text-xs font-mono text-[var(--color-text-dim)] whitespace-nowrap mt-0.5">
-                      {event.time}
-                    </span>
-                    <span className={`text-xs font-mono uppercase tracking-wider w-20 shrink-0 mt-0.5 ${sourceColors[event.source]}`}>
-                      {event.source}
-                    </span>
-                    <span className={`text-sm leading-relaxed ${isRootCause ? "text-[var(--color-success)] font-semibold" : "text-[var(--color-text)]"}`}>
-                      {event.content}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            {events.length > 0 ? (
+              <Timeline incidentId={id} initialEvents={events} />
+            ) : (
+              <p className="text-sm text-[var(--color-text-dim)] py-8 text-center">
+                Timeline events will appear here during investigation
+              </p>
+            )}
           </div>
 
           {/* Remediations — right column */}
           <div className="lg:col-span-2">
-            <div className="flex items-center gap-2 mb-6">
+            <div className="flex items-center gap-2 mb-4">
               <Shield className="w-4 h-4 text-[var(--color-text-muted)]" />
               <h2 className="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
                 Remediation Options
               </h2>
             </div>
 
-            <div className="space-y-4">
-              {MOCK_REMEDIATIONS.map((rem, i) => {
-                const risk = riskColors[rem.risk];
-                return (
-                  <div
-                    key={i}
-                    className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 animate-slide-in"
-                    style={{ animationDelay: `${(MOCK_EVENTS.length + i) * 80}ms` }}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="font-medium text-sm">{rem.title}</h3>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${risk.bg} ${risk.text}`}>
-                          {risk.label}
-                        </span>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-surface-elevated)] text-[var(--color-text-muted)]">
-                          {rem.timeframe === "immediate" ? "Now" : "Long-term"}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-[var(--color-text-muted)] mb-3 leading-relaxed">
-                      {rem.description}
-                    </p>
-                    {rem.cost && (
-                      <p className="text-xs text-[var(--color-text-dim)] mb-3">
-                        Cost impact: <span className="text-[var(--color-text)]">{rem.cost}</span>
-                      </p>
-                    )}
-
-                    {/* Command block */}
-                    <div className="relative bg-[var(--color-bg)] rounded-lg p-3 font-mono text-xs text-[var(--color-accent)] overflow-x-auto">
-                      <pre className="whitespace-pre-wrap">{rem.commands.join("\n")}</pre>
-                      <button
-                        onClick={() => copyCommand(rem.commands.join("\n"), i)}
-                        className="absolute top-2 right-2 p-1.5 rounded-md bg-[var(--color-surface)] hover:bg-[var(--color-surface-elevated)] transition"
-                      >
-                        {copiedIdx === i ? (
-                          <Check className="w-3.5 h-3.5 text-[var(--color-success)]" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5 text-[var(--color-text-dim)]" />
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Terraform block */}
-                    {rem.terraform && (
-                      <details className="mt-3">
-                        <summary className="text-xs text-[var(--color-text-dim)] cursor-pointer hover:text-[var(--color-text-muted)] transition">
-                          View Terraform code
-                        </summary>
-                        <div className="mt-2 bg-[var(--color-bg)] rounded-lg p-3 font-mono text-xs text-[var(--color-text-muted)] overflow-x-auto">
-                          <pre className="whitespace-pre-wrap">{rem.terraform}</pre>
-                        </div>
-                      </details>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            {remediations.length > 0 ? (
+              <div className="space-y-4">
+                {remediations.map((rem, i) => (
+                  <RemediationCard
+                    key={rem.id}
+                    remediation={rem}
+                    index={i}
+                    onApply={(remId) => updateRemediation(remId, "applied")}
+                    onSkip={(remId) => updateRemediation(remId, "skipped")}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 text-center">
+                <p className="text-sm text-[var(--color-text-dim)]">
+                  {rootCause ? "Generating remediation options..." : "Remediations will appear after root cause is identified"}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </main>

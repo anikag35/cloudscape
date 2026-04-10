@@ -1,41 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Zap, Plus, Activity, Clock, CheckCircle, AlertTriangle } from "lucide-react";
-
-// TODO: Replace with real Supabase query
-const MOCK_INCIDENTS = [
-  {
-    id: "inc-001",
-    title: "RDS connection exhaustion after ECS auto-scale",
-    severity: "sev1" as const,
-    status: "resolved" as const,
-    started_at: "2026-04-10T03:42:00Z",
-    resolved_at: "2026-04-10T04:15:00Z",
-    root_cause: "ECS auto-scaling created 11 new tasks, exhausting RDS max_connections",
-    confidence: 94,
-  },
-  {
-    id: "inc-002",
-    title: "Elevated 5xx errors on /api/checkout",
-    severity: "sev2" as const,
-    status: "investigating" as const,
-    started_at: "2026-04-10T14:15:00Z",
-    resolved_at: null,
-    root_cause: null,
-    confidence: null,
-  },
-  {
-    id: "inc-003",
-    title: "Lambda cold start latency spike",
-    severity: "sev3" as const,
-    status: "resolved" as const,
-    started_at: "2026-04-08T09:30:00Z",
-    resolved_at: "2026-04-08T09:45:00Z",
-    root_cause: "Provisioned concurrency exhausted after traffic surge",
-    confidence: 87,
-  },
-];
+import { useState } from "react";
+import { Zap, Plus, Activity, Clock, CheckCircle, AlertTriangle, Search } from "lucide-react";
+import { useIncidents } from "@/hooks/useIncidents";
+import HealthOverview from "@/components/HealthOverview";
+import InvestigateModal from "@/components/InvestigateModal";
+import StatusBadge from "@/components/StatusBadge";
 
 const sevColors = {
   sev1: "bg-[var(--color-sev1)]",
@@ -43,14 +14,33 @@ const sevColors = {
   sev3: "bg-[var(--color-sev3)]",
 };
 
-const statusConfig = {
-  investigating: { icon: Activity, color: "text-[var(--color-warning)]", label: "Investigating" },
-  identified: { icon: AlertTriangle, color: "text-[var(--color-accent)]", label: "Identified" },
-  mitigating: { icon: Clock, color: "text-[var(--color-accent)]", label: "Mitigating" },
-  resolved: { icon: CheckCircle, color: "text-[var(--color-success)]", label: "Resolved" },
-};
-
 export default function DashboardPage() {
+  const { incidents, loading, createIncident } = useIncidents();
+  const [showModal, setShowModal] = useState(false);
+  const [filter, setFilter] = useState<"all" | "active" | "resolved">("all");
+
+  const activeCount = incidents.filter((i) => i.status !== "resolved").length;
+  const resolvedToday = incidents.filter((i) => {
+    if (!i.resolved_at) return false;
+    const resolved = new Date(i.resolved_at);
+    const today = new Date();
+    return resolved.toDateString() === today.toDateString();
+  }).length;
+
+  const filtered = incidents.filter((i) => {
+    if (filter === "active") return i.status !== "resolved";
+    if (filter === "resolved") return i.status === "resolved";
+    return true;
+  });
+
+  const handleCreate = async (symptom: string, severity: string) => {
+    const incident = await createIncident(symptom, severity);
+    setShowModal(false);
+    if (incident) {
+      window.location.href = `/incident/${incident.id}`;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
       {/* Nav */}
@@ -63,74 +53,120 @@ export default function DashboardPage() {
             Cloudscape
           </span>
         </Link>
-        <Link
-          href="/setup"
-          className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-        >
-          Settings
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link href="/setup" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
+            Settings
+          </Link>
+        </div>
       </nav>
 
-      <main className="max-w-5xl mx-auto px-8 py-12">
+      <main className="max-w-5xl mx-auto px-8 py-8">
+        {/* Health Overview */}
+        <HealthOverview
+          activeIncidents={activeCount}
+          resolvedToday={resolvedToday}
+          mttr={12}
+          connected={true}
+        />
+
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold" style={{ fontFamily: "var(--font-display)" }}>
               Incidents
             </h1>
-            <p className="text-sm text-[var(--color-text-muted)] mt-1">
-              {MOCK_INCIDENTS.filter((i) => i.status !== "resolved").length} active
-              &middot; {MOCK_INCIDENTS.length} total
-            </p>
+            {/* Filter tabs */}
+            <div className="flex items-center bg-[var(--color-surface)] rounded-lg p-0.5 ml-4">
+              {(["all", "active", "resolved"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`text-xs px-3 py-1.5 rounded-md capitalize transition ${
+                    filter === f
+                      ? "bg-[var(--color-surface-elevated)] text-[var(--color-text)]"
+                      : "text-[var(--color-text-dim)] hover:text-[var(--color-text-muted)]"
+                  }`}
+                >
+                  {f} {f === "active" && activeCount > 0 && `(${activeCount})`}
+                </button>
+              ))}
+            </div>
           </div>
-          <button className="bg-[var(--color-accent)] text-black px-4 py-2 rounded-lg text-sm font-medium hover:brightness-110 transition inline-flex items-center gap-2">
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-[var(--color-accent)] text-black px-4 py-2 rounded-lg text-sm font-medium hover:brightness-110 transition inline-flex items-center gap-2"
+          >
             <Plus className="w-4 h-4" />
             Investigate Now
           </button>
         </div>
 
+        {/* Loading state */}
+        {loading && (
+          <div className="text-center py-20 text-[var(--color-text-dim)]">
+            <Activity className="w-6 h-6 mx-auto mb-3 animate-spin" />
+            <p className="text-sm">Loading incidents...</p>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && filtered.length === 0 && (
+          <div className="text-center py-20 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl">
+            <Search className="w-8 h-8 mx-auto mb-3 text-[var(--color-text-dim)]" />
+            <p className="text-[var(--color-text-muted)] mb-1">No incidents found</p>
+            <p className="text-sm text-[var(--color-text-dim)]">
+              {filter !== "all" ? "Try changing the filter" : "Click \"Investigate Now\" to start"}
+            </p>
+          </div>
+        )}
+
         {/* Incident list */}
         <div className="space-y-3">
-          {MOCK_INCIDENTS.map((incident) => {
-            const status = statusConfig[incident.status];
-            const StatusIcon = status.icon;
-            return (
-              <Link
-                key={incident.id}
-                href={`/incident/${incident.id}`}
-                className="block bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 hover:border-[var(--color-border-bright)] transition group"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className={`w-2.5 h-2.5 rounded-full mt-1.5 ${sevColors[incident.severity]} ${incident.status === "investigating" ? "pulse-live" : ""}`} />
-                    <div>
-                      <h3 className="font-medium group-hover:text-[var(--color-accent)] transition-colors">
-                        {incident.title}
-                      </h3>
-                      {incident.root_cause && (
-                        <p className="text-sm text-[var(--color-text-muted)] mt-1">
-                          {incident.root_cause}
-                        </p>
+          {filtered.map((incident) => (
+            <Link
+              key={incident.id}
+              href={`/incident/${incident.id}`}
+              className="block bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 hover:border-[var(--color-border-bright)] transition group"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-start gap-4">
+                  <div
+                    className={`w-2.5 h-2.5 rounded-full mt-1.5 ${
+                      sevColors[incident.severity as keyof typeof sevColors] || "bg-[var(--color-sev2)]"
+                    } ${incident.status !== "resolved" ? "pulse-live" : ""}`}
+                  />
+                  <div>
+                    <h3 className="font-medium group-hover:text-[var(--color-accent)] transition-colors">
+                      {incident.title}
+                    </h3>
+                    {incident.root_cause && (
+                      <p className="text-sm text-[var(--color-text-muted)] mt-1">
+                        {(incident.root_cause as { root_cause: string }).root_cause}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-4 mt-2 text-xs text-[var(--color-text-dim)]">
+                      <span className="uppercase tracking-wider font-medium">{incident.severity}</span>
+                      <span>{new Date(incident.started_at).toLocaleString()}</span>
+                      {incident.overall_score && (
+                        <span className="text-[var(--color-accent)]">{incident.overall_score}% confidence</span>
                       )}
-                      <div className="flex items-center gap-4 mt-2 text-xs text-[var(--color-text-dim)]">
-                        <span className="uppercase tracking-wider font-medium">{incident.severity}</span>
-                        <span>{new Date(incident.started_at).toLocaleString()}</span>
-                        {incident.confidence && (
-                          <span className="text-[var(--color-accent)]">{incident.confidence}% confidence</span>
-                        )}
-                      </div>
                     </div>
                   </div>
-                  <div className={`flex items-center gap-1.5 text-xs font-medium ${status.color}`}>
-                    <StatusIcon className="w-3.5 h-3.5" />
-                    {status.label}
-                  </div>
                 </div>
-              </Link>
-            );
-          })}
+                <StatusBadge status={incident.status} />
+              </div>
+            </Link>
+          ))}
         </div>
       </main>
+
+      {/* Investigate Modal */}
+      {showModal && (
+        <InvestigateModal
+          onClose={() => setShowModal(false)}
+          onSubmit={handleCreate}
+        />
+      )}
     </div>
   );
 }
