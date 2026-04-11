@@ -66,6 +66,20 @@ User sees live timeline in the dashboard
 | AWS       | SDK v3 (STS, CW, CT, ECS, RDS) | Cross-account read-only access     |
 | Deploy    | Vercel                    | Zero-config Next.js                      |
 
+## Demo Mode
+
+You can try Cloudscape **without connecting AWS**. Demo mode uses realistic mock AWS data (metrics, logs, CloudTrail events) but calls the **real Perplexity API** for analysis — so the root cause and remediations are genuinely AI-generated.
+
+Three built-in scenarios:
+
+| Scenario | What happens |
+|----------|-------------|
+| **RDS Connection Exhaustion** | ECS auto-scales to 15 tasks, overwhelming the database connection limit |
+| **ECS OOM Kills** | Memory leak causes containers to restart with exit code 137 |
+| **Lambda Throttling** | Traffic spike hits concurrency limit on checkout handler |
+
+Just set `PERPLEXITY_API_KEY` and `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`, then hit the "Investigate" button on the dashboard.
+
 ## Setup
 
 ### 1. Clone & install
@@ -80,14 +94,21 @@ npm install
 
 ```bash
 cp .env.example .env.local
-# Fill in your Supabase, Perplexity, and AWS credentials
 ```
+
+Required:
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` — from your Supabase project settings
+- `PERPLEXITY_API_KEY` — from [Perplexity API](https://docs.perplexity.ai)
+
+Optional (for real AWS investigations):
+- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION`
+- `ALLOWED_SNS_TOPIC_ARNS` — comma-separated SNS topic ARNs for webhook security
 
 ### 3. Database
 
 Run `supabase/migrations/001_initial.sql` in your Supabase SQL editor.
 
-### 4. Connect AWS (for real investigations)
+### 4. Connect AWS (optional — for real investigations)
 
 Deploy the CloudFormation template in `cloudformation/cloudscape-role.yaml` to the AWS account you want to monitor. Paste the resulting Role ARN into Cloudscape's setup page.
 
@@ -97,7 +118,7 @@ Deploy the CloudFormation template in `cloudformation/cloudscape-role.yaml` to t
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000). Auth is skipped in development mode.
 
 ## Project Structure
 
@@ -119,6 +140,7 @@ cloudscape/
 │   │   └── api/
 │   │       ├── incidents/              # CRUD + investigate + postmortem
 │   │       ├── remediations/[id]/      # Mark applied/skipped
+│   │       ├── demo/investigate/        # Demo mode (mock AWS, real AI)
 │   │       ├── aws/connect/            # Test IAM role connection
 │   │       └── webhooks/cloudwatch/    # SNS alarm intake
 │   ├── components/
@@ -139,6 +161,8 @@ cloudscape/
 │   ├── lib/
 │   │   ├── aws/                        # STS AssumeRole + data collectors
 │   │   ├── perplexity/                 # Agent API client + prompts
+│   │   ├── auth.ts                     # Session validation + requireAuth
+│   │   ├── demo.ts                     # Mock AWS data for 3 scenarios
 │   │   ├── investigation.ts            # Orchestrator pipeline
 │   │   ├── db.ts                       # Supabase client
 │   │   └── utils.ts                    # cn() helper

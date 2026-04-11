@@ -22,10 +22,14 @@ export default function RemediationCard({ remediation, index, onApply, onSkip }:
   const [showTerraform, setShowTerraform] = useState(false);
   const risk = riskConfig[remediation.risk_level];
 
-  const copyCommands = () => {
-    navigator.clipboard.writeText(remediation.commands.join("\n"));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copyCommands = async () => {
+    try {
+      await navigator.clipboard.writeText(remediation.commands.join("\n"));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API not available (e.g., non-HTTPS context)
+    }
   };
 
   return (

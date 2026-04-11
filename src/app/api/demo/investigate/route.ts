@@ -4,6 +4,8 @@ import { getDemoScenario, type DemoScenario } from "@/lib/demo";
 import { analyzeRootCause } from "@/lib/perplexity/analyze";
 import { generateRemediations } from "@/lib/perplexity/remediate";
 
+const VALID_SCENARIOS: DemoScenario[] = ["rds_connection_exhaustion", "ecs_oom_kill", "lambda_throttle"];
+
 /**
  * POST /api/demo/investigate
  *
@@ -16,7 +18,21 @@ export async function POST(req: NextRequest) {
   const supabase = getSupabaseClient();
 
   try {
-    const { scenario = "rds_connection_exhaustion" } = await req.json() as { scenario?: DemoScenario };
+    let body: { scenario?: string };
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    }
+
+    const scenario = (body.scenario || "rds_connection_exhaustion") as DemoScenario;
+    if (!VALID_SCENARIOS.includes(scenario)) {
+      return NextResponse.json(
+        { error: `Invalid scenario. Must be one of: ${VALID_SCENARIOS.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
     const demo = getDemoScenario(scenario);
 
     // 1. Create the incident
@@ -33,16 +49,20 @@ export async function POST(req: NextRequest) {
       .select().single();
 
     if (incErr || !incident) {
-      return NextResponse.json({ error: incErr?.message || "Failed to create incident" }, { status: 500 });
+      return NextResponse.json({ error: "Failed to create incident" }, { status: 500 });
     }
 
     const id = incident.id;
 
-    // Helper to add timeline events
+    // Helper to add timeline events — errors logged but non-fatal
     const addEvent = async (content: string, source = "agent", eventType = "info") => {
-      await supabase.from("incident_events").insert({
-        incident_id: id, source, event_type: eventType, content,
-      });
+      try {
+        await supabase.from("incident_events").insert({
+          incident_id: id, source, event_type: eventType, content,
+        });
+      } catch (err) {
+        console.error("Failed to add timeline event:", err);
+      }
     };
 
     // 2. Simulate data collection phase
@@ -62,7 +82,7 @@ export async function POST(req: NextRequest) {
       const min = Math.min(...values.slice(0, 3)); // early baseline
       if (max > min * 2) {
         await addEvent(
-          `${metric.metric_name}: spiked from ${Math.round(min)} → ${Math.round(max)}`,
+          `${metric.metric_name}: spiked from ${Math.round(min)} \u2192 ${Math.round(max)}`,
           "cloudwatch",
           "metric_spike"
         );
@@ -82,13 +102,21 @@ export async function POST(req: NextRequest) {
     await addEvent("Sending data to Perplexity for root cause analysis...");
     await addEvent("Searching web for AWS outages and known issues...");
 
-    const now = new Date();
-    const rootCause = await analyzeRootCause(
-      demo.symptom,
-      new Date(now.getTime() - 30 * 60000).toISOString(),
-      now.toISOString(),
-      demo.context
-    );
+    let rootCause;
+    try {
+      const now = new Date();
+      rootCause = await analyzeRootCause(
+        demo.symptom,
+        new Date(now.getTime() - 30 * 60000).toISOString(),
+        now.toISOString(),
+        demo.context
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Analysis failed";
+      await addEvent(`Root cause analysis failed: ${msg}`, "system", "error");
+      await supabase.from("incidents").update({ phase: "analyzing", status: "investigating" }).eq("id", id);
+      return NextResponse.json({ error: "Root cause analysis failed", incident_id: id }, { status: 500 });
+    }
 
     await addEvent(
       `ROOT CAUSE (${Math.round(rootCause.confidence * 100)}% confidence): ${rootCause.root_cause}`,
@@ -97,7 +125,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (rootCause.is_aws_outage) {
-      await addEvent("⚠️ AWS service disruption detected", "agent", "analysis");
+      await addEvent("AWS service disruption detected", "agent", "analysis");
     }
     if (rootCause.known_issue_url) {
       await addEvent(`Known issue: ${rootCause.known_issue_url}`, "agent", "analysis");
@@ -113,23 +141,42 @@ export async function POST(req: NextRequest) {
     // 4. Run REAL Perplexity remediation generation
     await addEvent("Generating remediation options...");
 
-    const remediations = await generateRemediations(
-      rootCause,
-      demo.context.serviceStatus,
-      "us-east-1"
-    );
-
-    for (const rem of remediations) {
-      await supabase.from("remediations").insert({
+    let remediations;
+    try {
+      remediations = await generateRemediations(
+        rootCause,
+        demo.context.serviceStatus,
+        "us-east-1"
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Remediation generation failed";
+      await addEvent(`Remediation generation failed: ${msg}`, "system", "error");
+      // Still return success since we have root cause
+      return NextResponse.json({
+        success: true,
         incident_id: id,
-        title: rem.title,
-        description: rem.description,
-        commands: rem.commands,
-        terraform: rem.terraform,
-        risk_level: rem.risk_level,
-        cost_impact: rem.cost_impact,
-        timeframe: rem.timeframe,
+        root_cause: rootCause,
+        remediations_count: 0,
       });
+    }
+
+    // Batch insert remediations
+    const remediationRows = remediations.map((rem) => ({
+      incident_id: id,
+      title: rem.title,
+      description: rem.description,
+      commands: rem.commands,
+      terraform: rem.terraform,
+      risk_level: rem.risk_level,
+      cost_impact: rem.cost_impact,
+      timeframe: rem.timeframe,
+    }));
+
+    if (remediationRows.length > 0) {
+      const { error: remErr } = await supabase.from("remediations").insert(remediationRows);
+      if (remErr) {
+        console.error("Failed to insert remediations:", remErr);
+      }
     }
 
     await addEvent(
@@ -148,6 +195,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Demo investigation failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Demo investigation error:", message);
+    return NextResponse.json({ error: "Demo investigation failed" }, { status: 500 });
   }
 }

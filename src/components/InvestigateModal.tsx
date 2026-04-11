@@ -20,20 +20,33 @@ export default function InvestigateModal({ onClose, onSubmit, onDemo }: Investig
   const [symptom, setSymptom] = useState("");
   const [severity, setSeverity] = useState("sev2");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     if (!symptom.trim()) return;
     setLoading(true);
-    await onSubmit(symptom, severity);
-    setLoading(false);
-    onClose();
+    setError(null);
+    try {
+      await onSubmit(symptom, severity);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Investigation failed to start");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDemo = async (scenario: string) => {
     setLoading(true);
-    if (onDemo) await onDemo(scenario);
-    setLoading(false);
-    onClose();
+    setError(null);
+    try {
+      if (onDemo) await onDemo(scenario);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Demo failed to start");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -53,6 +66,12 @@ export default function InvestigateModal({ onClose, onSubmit, onDemo }: Investig
             <p className="text-xs text-[var(--color-text-dim)]">Run a demo scenario or describe a real symptom</p>
           </div>
         </div>
+
+        {error && (
+          <div className="mb-4 bg-[var(--color-danger-dim)] border border-[var(--color-danger)]/30 rounded-lg px-4 py-2">
+            <p className="text-xs text-[var(--color-danger)]">{error}</p>
+          </div>
+        )}
 
         {/* Tab switcher */}
         <div className="flex bg-[var(--color-bg)] rounded-lg p-0.5 mb-6">

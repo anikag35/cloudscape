@@ -11,20 +11,18 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Allow API routes (they handle their own auth)
+  // Allow API routes — they validate auth themselves via requireAuth()
   if (pathname.startsWith("/api/")) {
     return NextResponse.next();
   }
 
   // Check for Supabase auth cookie
-  // In production, use @supabase/ssr middleware helper
+  // In development, skip so we can test pages without auth
   const hasSession =
     request.cookies.has("sb-access-token") ||
-    request.cookies.has("sb-refresh-token") ||
-    // During development, skip auth check
-    process.env.NODE_ENV === "development";
+    request.cookies.has("sb-refresh-token");
 
-  if (!hasSession) {
+  if (!hasSession && process.env.NODE_ENV !== "development") {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);

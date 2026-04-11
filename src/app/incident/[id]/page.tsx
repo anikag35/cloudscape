@@ -46,7 +46,7 @@ export default function IncidentPage({ params }: { params: Promise<{ id: string 
     return (
       <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center">
         <div className="text-center">
-          <Activity className="w-8 h-8 mx-auto mb-3 text-[var(--color-accent)] animate-spin" />
+          <Activity className="w-10 h-10 mx-auto mb-3 text-[var(--color-accent)] animate-spin" />
           <p className="text-sm text-[var(--color-text-muted)]">Loading incident...</p>
         </div>
       </div>
@@ -57,10 +57,10 @@ export default function IncidentPage({ params }: { params: Promise<{ id: string 
     return (
       <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center">
         <div className="text-center">
-          <AlertTriangle className="w-8 h-8 mx-auto mb-3 text-[var(--color-danger)]" />
+          <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-[var(--color-danger)]" />
           <p className="text-sm text-[var(--color-text-muted)]">{error || "Incident not found"}</p>
-          <Link href="/dashboard" className="text-sm text-[var(--color-accent)] mt-4 inline-block">
-            ← Back to dashboard
+          <Link href="/dashboard" className="text-sm text-[var(--color-accent)] mt-4 inline-block hover:underline">
+            &larr; Back to dashboard
           </Link>
         </div>
       </div>
@@ -102,7 +102,7 @@ export default function IncidentPage({ params }: { params: Promise<{ id: string 
           {!postmortem && rootCause && (
             <button
               onClick={generatePostMortem}
-              className="bg-[var(--color-surface)] border border-[var(--color-border)] text-sm px-4 py-2 rounded-lg hover:border-[var(--color-border-bright)] transition inline-flex items-center gap-2"
+              className="bg-[var(--color-surface)] border border-[var(--color-border)] text-sm px-4 py-2 rounded-lg hover:border-[var(--color-border-bright)] hover:bg-[var(--color-surface-elevated)] transition inline-flex items-center gap-2"
             >
               <FileText className="w-4 h-4" />
               Generate Post-Mortem
@@ -121,48 +121,48 @@ export default function IncidentPage({ params }: { params: Promise<{ id: string 
       </nav>
 
       {/* Phase progress bar */}
-      <div className="max-w-7xl mx-auto px-8 py-4 border-b border-[var(--color-border)]">
+      <div className="max-w-7xl mx-auto px-8 py-5 border-b border-[var(--color-border)]">
         <div className="flex items-center gap-2">
           {phaseSteps.map((step, i) => (
             <div key={step.key} className="flex items-center gap-2 flex-1">
               <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium shrink-0 ${
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 transition-colors ${
                   i <= currentPhaseIdx
                     ? "bg-[var(--color-accent)] text-black"
                     : "bg-[var(--color-surface)] text-[var(--color-text-dim)] border border-[var(--color-border)]"
                 }`}
               >
-                {i < currentPhaseIdx ? "✓" : i + 1}
+                {i < currentPhaseIdx ? "\u2713" : i + 1}
               </div>
               <span
-                className={`text-xs whitespace-nowrap ${
+                className={`text-xs font-medium whitespace-nowrap ${
                   i <= currentPhaseIdx ? "text-[var(--color-text)]" : "text-[var(--color-text-dim)]"
                 }`}
               >
                 {step.label}
               </span>
               {i < phaseSteps.length - 1 && (
-                <div className={`flex-1 h-px ${i < currentPhaseIdx ? "bg-[var(--color-accent)]" : "bg-[var(--color-border)]"}`} />
+                <div className={`flex-1 h-px transition-colors ${i < currentPhaseIdx ? "bg-[var(--color-accent)]" : "bg-[var(--color-border)]"}`} />
               )}
             </div>
           ))}
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-8 py-8">
+      <main className="max-w-7xl mx-auto px-8 py-8 pb-16">
         {/* Root cause banner */}
         {rootCause && (
-          <div className="bg-[var(--color-success-dim)] border border-[var(--color-success)]/30 rounded-xl p-5 mb-8 flex items-start gap-4">
-            <ScoreGauge score={Math.round(rootCause.confidence * 100)} label="Confidence" size={64} />
+          <div className="bg-[var(--color-success-dim)] border border-[var(--color-success)]/30 rounded-xl p-6 mb-8 flex items-start gap-5 card-shadow">
+            <ScoreGauge score={Math.round(rootCause.confidence * 100)} label="Confidence" size={72} />
             <div className="flex-1">
-              <h2 className="font-semibold text-[var(--color-success)] mb-1">Root Cause Identified</h2>
+              <h2 className="font-semibold text-[var(--color-success)] mb-1.5 text-lg">Root Cause Identified</h2>
               <p className="text-sm text-[var(--color-text)] leading-relaxed">{rootCause.root_cause}</p>
-              <div className="flex items-center gap-4 mt-2 text-xs text-[var(--color-text-dim)]">
-                <span className="px-2 py-0.5 rounded-full bg-[var(--color-surface)] text-[var(--color-text-muted)]">
+              <div className="flex items-center gap-4 mt-3 text-xs text-[var(--color-text-dim)]">
+                <span className="px-2.5 py-1 rounded-full bg-[var(--color-surface)] text-[var(--color-text-muted)]">
                   {rootCause.category}
                 </span>
                 {rootCause.is_aws_outage && (
-                  <span className="px-2 py-0.5 rounded-full bg-[var(--color-warning-dim)] text-[var(--color-warning)]">
+                  <span className="px-2.5 py-1 rounded-full bg-[var(--color-warning-dim)] text-[var(--color-warning)]">
                     AWS outage involved
                   </span>
                 )}
@@ -183,9 +183,9 @@ export default function IncidentPage({ params }: { params: Promise<{ id: string 
 
         {/* No investigation yet */}
         {!rootCause && events.length === 0 && (
-          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-8 mb-8 text-center">
-            <Activity className="w-8 h-8 mx-auto mb-3 text-[var(--color-text-dim)]" />
-            <p className="text-[var(--color-text-muted)] mb-4">No investigation running yet</p>
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-10 mb-8 text-center card-shadow">
+            <Activity className="w-12 h-12 mx-auto mb-4 text-[var(--color-text-dim)]" />
+            <p className="text-[var(--color-text-muted)] mb-5">No investigation running yet</p>
             <button
               onClick={triggerInvestigation}
               className="bg-[var(--color-accent)] text-black px-6 py-2.5 rounded-lg font-medium hover:brightness-110 transition inline-flex items-center gap-2"
@@ -204,7 +204,7 @@ export default function IncidentPage({ params }: { params: Promise<{ id: string 
               <h2 className="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
                 Investigation Timeline
               </h2>
-              {incident.status !== "resolved" && (
+              {incident.status !== "resolved" && incident.phase !== "complete" && (
                 <>
                   <div className="w-2 h-2 rounded-full bg-[var(--color-success)] pulse-live ml-2" />
                   <span className="text-xs text-[var(--color-text-dim)]">Live</span>
@@ -215,9 +215,11 @@ export default function IncidentPage({ params }: { params: Promise<{ id: string 
             {events.length > 0 ? (
               <Timeline incidentId={id} initialEvents={events} />
             ) : (
-              <p className="text-sm text-[var(--color-text-dim)] py-8 text-center">
-                Timeline events will appear here during investigation
-              </p>
+              <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-8 text-center">
+                <p className="text-sm text-[var(--color-text-dim)]">
+                  Timeline events will appear here during investigation
+                </p>
+              </div>
             )}
           </div>
 
@@ -243,7 +245,7 @@ export default function IncidentPage({ params }: { params: Promise<{ id: string 
                 ))}
               </div>
             ) : (
-              <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 text-center">
+              <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 text-center card-shadow">
                 <p className="text-sm text-[var(--color-text-dim)]">
                   {rootCause ? "Generating remediation options..." : "Remediations will appear after root cause is identified"}
                 </p>

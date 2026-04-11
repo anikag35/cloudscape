@@ -1,11 +1,11 @@
 import { Activity, AlertTriangle, Clock, CheckCircle, type LucideIcon } from "lucide-react";
 import type { IncidentStatus, Severity } from "@/types";
 
-const statusConfig: Record<IncidentStatus, { icon: LucideIcon; color: string; label: string }> = {
-  investigating: { icon: Activity, color: "text-[var(--color-warning)]", label: "Investigating" },
-  identified: { icon: AlertTriangle, color: "text-[var(--color-accent)]", label: "Identified" },
-  mitigating: { icon: Clock, color: "text-[var(--color-accent)]", label: "Mitigating" },
-  resolved: { icon: CheckCircle, color: "text-[var(--color-success)]", label: "Resolved" },
+const statusConfig: Record<IncidentStatus, { icon: LucideIcon; color: string; bg: string; label: string }> = {
+  investigating: { icon: Activity, color: "text-[var(--color-warning)]", bg: "bg-[var(--color-warning)]/10", label: "Investigating" },
+  identified: { icon: AlertTriangle, color: "text-[var(--color-accent)]", bg: "bg-[var(--color-accent)]/10", label: "Identified" },
+  mitigating: { icon: Clock, color: "text-[var(--color-accent)]", bg: "bg-[var(--color-accent)]/10", label: "Mitigating" },
+  resolved: { icon: CheckCircle, color: "text-[var(--color-success)]", bg: "bg-[var(--color-success)]/10", label: "Resolved" },
 };
 
 const sevConfig: Record<Severity, { color: string; bg: string }> = {
@@ -18,7 +18,7 @@ export default function StatusBadge({ status }: { status: IncidentStatus }) {
   const config = statusConfig[status];
   const Icon = config.icon;
   return (
-    <div className={`flex items-center gap-1.5 text-xs font-medium ${config.color}`}>
+    <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${config.color} ${config.bg}`}>
       <Icon className="w-3.5 h-3.5" />
       {config.label}
     </div>

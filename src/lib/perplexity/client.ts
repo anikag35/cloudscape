@@ -7,6 +7,7 @@
  */
 
 const PERPLEXITY_BASE = "https://api.perplexity.ai";
+const REQUEST_TIMEOUT_MS = 120_000; // 2 minutes
 
 interface PerplexityMessage {
   role: "system" | "user" | "assistant";
@@ -40,44 +41,70 @@ export async function queryPerplexity(
   const apiKey = process.env.PERPLEXITY_API_KEY;
   if (!apiKey) throw new Error("PERPLEXITY_API_KEY not set");
 
-  const res = await fetch(`${PERPLEXITY_BASE}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      // sonar-reasoning-pro: best for multi-step analysis with web search
-      model: options.model ?? "sonar-reasoning-pro",
-      messages: options.messages,
-      temperature: options.temperature ?? 0.1,
-      max_tokens: options.maxTokens ?? 4096,
-      web_search_options: {
-        search_context_size: options.searchContextSize ?? "high",
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(`${PERPLEXITY_BASE}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
       },
-    }),
-  });
+      body: JSON.stringify({
+        model: options.model ?? "sonar-reasoning-pro",
+        messages: options.messages,
+        temperature: options.temperature ?? 0.1,
+        max_tokens: options.maxTokens ?? 4096,
+        web_search_options: {
+          search_context_size: options.searchContextSize ?? "high",
+        },
+      }),
+      signal: controller.signal,
+    });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Perplexity API error ${res.status}: ${err}`);
+    if (!res.ok) {
+      const status = res.status;
+      if (status === 429) throw new Error("Perplexity API rate limited — try again shortly");
+      if (status >= 500) throw new Error(`Perplexity API server error (${status})`);
+      throw new Error(`Perplexity API error (${status})`);
+    }
+
+    const data: PerplexityResponse = await res.json();
+    const content = data.choices?.[0]?.message?.content ?? "";
+    const citations = data.citations ?? [];
+
+    return { content, citations };
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const data: PerplexityResponse = await res.json();
-  const content = data.choices?.[0]?.message?.content ?? "";
-  const citations = data.citations ?? [];
-
-  return { content, citations };
 }
 
 /**
  * Helper to parse JSON from Perplexity's response.
  * The model sometimes wraps JSON in markdown code fences.
+ * Wrapped in try-catch to provide clear error messages.
  */
 export function parseJSON<T>(raw: string): T {
   const cleaned = raw
     .replace(/```json\s*/g, "")
     .replace(/```\s*/g, "")
     .trim();
-  return JSON.parse(cleaned);
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // Try to extract JSON object or array from the response
+    const jsonMatch = cleaned.match(/[\[{][\s\S]*[\]}]/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch {
+        // Fall through to error
+      }
+    }
+    throw new Error(
+      `Failed to parse AI response as JSON. Raw response starts with: "${cleaned.slice(0, 100)}..."`
+    );
+  }
 }

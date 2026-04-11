@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
 import { generatePostMortem } from "@/lib/perplexity/postmortem";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authErr = await requireAuth(req);
+  if (authErr) return authErr;
+
   const supabase = getSupabaseClient();
   const { id } = await params;
 
@@ -32,13 +36,12 @@ export async function POST(
       .upsert({ incident_id: id, content }, { onConflict: "incident_id" })
       .select().single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return NextResponse.json({ error: "Failed to save post-mortem" }, { status: 500 });
 
     await supabase.from("incidents").update({ phase: "complete" }).eq("id", id);
     return NextResponse.json(data);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Post-mortem generation failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Post-mortem generation failed" }, { status: 500 });
   }
 }
 
@@ -46,6 +49,9 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authErr = await requireAuth(req);
+  if (authErr) return authErr;
+
   const supabase = getSupabaseClient();
   const { id } = await params;
 

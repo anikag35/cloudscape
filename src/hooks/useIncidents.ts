@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Incident } from "@/types";
 
 interface IncidentsData {
@@ -15,18 +15,26 @@ export function useIncidents(): IncidentsData {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
       const res = await fetch("/api/incidents");
       if (!res.ok) throw new Error("Failed to fetch incidents");
       const data = await res.json();
+      if (!mountedRef.current) return;
       setIncidents(data);
       setError(null);
     } catch (err) {
+      if (!mountedRef.current) return;
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   }, []);
 
@@ -39,6 +47,7 @@ export function useIncidents(): IncidentsData {
     severity: string = "sev2"
   ): Promise<Incident | null> => {
     try {
+      setError(null);
       const res = await fetch("/api/incidents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -46,10 +55,14 @@ export function useIncidents(): IncidentsData {
       });
       if (!res.ok) throw new Error("Failed to create incident");
       const incident = await res.json();
-      setIncidents((prev) => [incident, ...prev]);
+      if (mountedRef.current) {
+        setIncidents((prev) => [incident, ...prev]);
+      }
       return incident;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Creation failed");
+      if (mountedRef.current) {
+        setError(err instanceof Error ? err.message : "Creation failed");
+      }
       return null;
     }
   };

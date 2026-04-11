@@ -11,6 +11,31 @@ export interface RemediationOption {
   timeframe: "immediate" | "long_term";
 }
 
+const VALID_RISK_LEVELS = ["safe", "caution", "dangerous"];
+const VALID_TIMEFRAMES = ["immediate", "long_term"];
+
+/** Runtime validation for a single remediation option. */
+function validateRemediation(data: unknown): RemediationOption | null {
+  if (!data || typeof data !== "object") return null;
+  const obj = data as Record<string, unknown>;
+
+  return {
+    title: typeof obj.title === "string" ? obj.title : "Untitled remediation",
+    description: typeof obj.description === "string" ? obj.description : "",
+    commands: Array.isArray(obj.commands)
+      ? obj.commands.filter((c): c is string => typeof c === "string")
+      : [],
+    terraform: typeof obj.terraform === "string" ? obj.terraform : null,
+    risk_level: VALID_RISK_LEVELS.includes(obj.risk_level as string)
+      ? (obj.risk_level as RemediationOption["risk_level"])
+      : "caution",
+    cost_impact: typeof obj.cost_impact === "string" ? obj.cost_impact : null,
+    timeframe: VALID_TIMEFRAMES.includes(obj.timeframe as string)
+      ? (obj.timeframe as RemediationOption["timeframe"])
+      : "immediate",
+  };
+}
+
 /**
  * Given a root cause analysis, generates ranked remediation options.
  * Uses Perplexity's web search to find AWS best practices and
@@ -71,5 +96,19 @@ Generate remediation options. Search the web for current AWS pricing and best pr
     temperature: 0.2,
   });
 
-  return parseJSON<RemediationOption[]>(content);
+  const parsed = parseJSON<unknown[]>(content);
+
+  if (!Array.isArray(parsed)) {
+    throw new Error("Expected an array of remediations from AI response");
+  }
+
+  const validated = parsed
+    .map(validateRemediation)
+    .filter((r): r is RemediationOption => r !== null);
+
+  if (validated.length === 0) {
+    throw new Error("AI returned no valid remediation options");
+  }
+
+  return validated;
 }

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
 import { runInvestigation } from "@/lib/investigation";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authErr = await requireAuth(req);
+  if (authErr) return authErr;
+
   const supabase = getSupabaseClient();
   const { id } = await params;
 
@@ -25,13 +29,18 @@ export async function POST(
     }
 
     const result = await runInvestigation(org, incident.symptom, async (event) => {
-      await supabase.from("incident_events").insert({
-        incident_id: id,
-        source: "agent",
-        event_type: event.phase === "analyzing" ? "analysis" : "info",
-        content: event.content,
-      });
-      await supabase.from("incidents").update({ phase: event.phase }).eq("id", id);
+      // Fire-and-forget DB writes for timeline events — errors logged but not fatal
+      try {
+        await supabase.from("incident_events").insert({
+          incident_id: id,
+          source: "agent",
+          event_type: event.phase === "analyzing" ? "analysis" : "info",
+          content: event.content,
+        });
+        await supabase.from("incidents").update({ phase: event.phase }).eq("id", id);
+      } catch (dbErr) {
+        console.error("Failed to write timeline event:", dbErr);
+      }
     });
 
     await supabase.from("incidents").update({
@@ -41,17 +50,23 @@ export async function POST(
       phase: "remediating",
     }).eq("id", id);
 
-    for (const rem of result.remediations) {
-      await supabase.from("remediations").insert({
-        incident_id: id,
-        title: rem.title,
-        description: rem.description,
-        commands: rem.commands,
-        terraform: rem.terraform,
-        risk_level: rem.risk_level,
-        cost_impact: rem.cost_impact,
-        timeframe: rem.timeframe,
-      });
+    // Batch insert remediations
+    const remediationRows = result.remediations.map((rem) => ({
+      incident_id: id,
+      title: rem.title,
+      description: rem.description,
+      commands: rem.commands,
+      terraform: rem.terraform,
+      risk_level: rem.risk_level,
+      cost_impact: rem.cost_impact,
+      timeframe: rem.timeframe,
+    }));
+
+    if (remediationRows.length > 0) {
+      const { error: remErr } = await supabase.from("remediations").insert(remediationRows);
+      if (remErr) {
+        console.error("Failed to insert remediations:", remErr);
+      }
     }
 
     return NextResponse.json({
@@ -61,9 +76,13 @@ export async function POST(
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Investigation failed";
-    await supabase.from("incident_events").insert({
-      incident_id: id, source: "system", event_type: "error", content: `Investigation failed: ${message}`,
-    });
-    return NextResponse.json({ error: message }, { status: 500 });
+    try {
+      await supabase.from("incident_events").insert({
+        incident_id: id, source: "system", event_type: "error", content: `Investigation failed: ${message}`,
+      });
+    } catch {
+      // Best-effort error event logging
+    }
+    return NextResponse.json({ error: "Investigation failed" }, { status: 500 });
   }
 }

@@ -3,20 +3,38 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Zap, Loader2 } from "lucide-react";
+import { getSupabaseBrowserClient } from "@/lib/db";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // TODO: Supabase auth magic link
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { error: authError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+
+      if (authError) {
+        setError(authError.message);
+      } else {
+        setSent(true);
+      }
+    } catch {
+      setError("Failed to send magic link. Please try again.");
+    } finally {
       setLoading(false);
-      setSent(true);
-    }, 1500);
+    }
   };
 
   return (
@@ -33,6 +51,12 @@ export default function LoginPage() {
             AI Incident Commander for AWS
           </p>
         </div>
+
+        {error && (
+          <div className="mb-4 bg-[var(--color-danger-dim)] border border-[var(--color-danger)]/30 rounded-lg px-4 py-2">
+            <p className="text-sm text-[var(--color-danger)]">{error}</p>
+          </div>
+        )}
 
         {sent ? (
           <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 text-center">

@@ -19,18 +19,33 @@ const sourceColors: Record<string, string> = {
 };
 
 const typeIcons: Record<string, string> = {
-  metric_spike: "📈",
-  deployment: "🚀",
-  error: "❌",
-  analysis: "🔍",
-  remediation: "🛠",
-  status_change: "🔄",
-  info: "ℹ️",
+  metric_spike: "\u{1F4C8}",
+  deployment: "\u{1F680}",
+  error: "\u274C",
+  analysis: "\u{1F50D}",
+  remediation: "\u{1F6E0}",
+  status_change: "\u{1F504}",
+  info: "\u2139\uFE0F",
 };
 
 export default function Timeline({ incidentId, initialEvents = [] }: TimelineProps) {
   const [events, setEvents] = useState<IncidentEvent[]>(initialEvents);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Track which event IDs we've already rendered so we only animate truly new ones
+  const seenIdsRef = useRef<Set<string>>(new Set(initialEvents.map((e) => e.id)));
+
+  // Sync local state when parent passes updated initialEvents (from polling)
+  useEffect(() => {
+    setEvents((prev) => {
+      // Merge: keep all existing events, add any new ones from the prop
+      const existingIds = new Set(prev.map((e) => e.id));
+      const newFromProp = initialEvents.filter((e) => !existingIds.has(e.id));
+      if (newFromProp.length === 0 && prev.length === initialEvents.length) return prev;
+      // If parent has fewer events (shouldn't happen), prefer the larger set
+      if (newFromProp.length === 0 && prev.length >= initialEvents.length) return prev;
+      return [...prev, ...newFromProp];
+    });
+  }, [initialEvents]);
 
   // Auto-scroll to bottom when new events arrive
   useEffect(() => {
@@ -39,15 +54,21 @@ export default function Timeline({ incidentId, initialEvents = [] }: TimelinePro
 
   // Subscribe to Supabase Realtime for live event streaming
   useEffect(() => {
+    let cancelled = false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let channel: any = null;
-    let supabaseClient: any = null;
+    let channelRef: any = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let clientRef: any = null;
 
     async function subscribe() {
       try {
         const { getSupabaseBrowserClient } = await import("@/lib/db");
-        supabaseClient = getSupabaseBrowserClient();
-        channel = supabaseClient
+        if (cancelled) return;
+
+        const supabaseClient = getSupabaseBrowserClient();
+        clientRef = supabaseClient;
+
+        const channel = supabaseClient
           .channel(`incident-timeline-${incidentId}`)
           .on(
             "postgres_changes",
@@ -58,6 +79,7 @@ export default function Timeline({ incidentId, initialEvents = [] }: TimelinePro
               filter: `incident_id=eq.${incidentId}`,
             },
             (payload: { new: IncidentEvent }) => {
+              if (cancelled) return;
               setEvents((prev) => {
                 if (prev.some((e) => e.id === payload.new.id)) return prev;
                 return [...prev, payload.new];
@@ -65,6 +87,12 @@ export default function Timeline({ incidentId, initialEvents = [] }: TimelinePro
             }
           )
           .subscribe();
+
+        if (cancelled) {
+          supabaseClient.removeChannel(channel);
+        } else {
+          channelRef = channel;
+        }
       } catch {
         // Supabase not configured — fall back to polling
       }
@@ -73,8 +101,9 @@ export default function Timeline({ incidentId, initialEvents = [] }: TimelinePro
     subscribe();
 
     return () => {
-      if (channel && supabaseClient) {
-        supabaseClient.removeChannel(channel);
+      cancelled = true;
+      if (channelRef && clientRef) {
+        clientRef.removeChannel(channelRef);
       }
     };
   }, [incidentId]);
@@ -89,26 +118,29 @@ export default function Timeline({ incidentId, initialEvents = [] }: TimelinePro
 
   return (
     <div className="space-y-0.5 max-h-[600px] overflow-y-auto pr-2">
-      {events.map((event, i) => {
+      {events.map((event) => {
         const isRootCause = event.content.includes("ROOT CAUSE");
         const isError = event.event_type === "error";
 
+        // Only animate events we haven't seen before
+        const isNew = !seenIdsRef.current.has(event.id);
+        if (isNew) seenIdsRef.current.add(event.id);
+
         return (
           <div
-            key={event.id || i}
-            className={`flex gap-3 py-2 px-3 rounded-lg animate-slide-in ${
+            key={event.id || `${event.incident_id}-${event.timestamp}-${event.content.slice(0, 20)}`}
+            className={`flex gap-3 py-2 px-3 rounded-lg ${isNew ? "animate-slide-in" : ""} ${
               isRootCause
                 ? "bg-[var(--color-success-dim)] border border-[var(--color-success)]/30"
                 : isError
                 ? "bg-[var(--color-danger-dim)] border border-[var(--color-danger)]/30"
                 : "hover:bg-[var(--color-surface)]"
             }`}
-            style={{ animationDelay: `${i * 50}ms` }}
           >
             <span className="text-xs font-mono text-[var(--color-text-dim)] whitespace-nowrap mt-0.5 w-16 shrink-0">
               {formatTime(event.timestamp)}
             </span>
-            <span className="text-[10px] mt-1">{typeIcons[event.event_type] || "•"}</span>
+            <span className="text-[10px] mt-1">{typeIcons[event.event_type] || "\u2022"}</span>
             <span
               className={`text-xs font-mono uppercase tracking-wider w-20 shrink-0 mt-0.5 ${
                 sourceColors[event.source] || "text-[var(--color-text-dim)]"

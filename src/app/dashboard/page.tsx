@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Zap, Plus, Activity, Clock, CheckCircle, AlertTriangle, Search } from "lucide-react";
 import { useIncidents } from "@/hooks/useIncidents";
@@ -15,6 +16,7 @@ const sevColors = {
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { incidents, loading, createIncident } = useIncidents();
   const [showModal, setShowModal] = useState(false);
   const [filter, setFilter] = useState<"all" | "active" | "resolved">("all");
@@ -37,7 +39,7 @@ export default function DashboardPage() {
     const incident = await createIncident(symptom, severity);
     setShowModal(false);
     if (incident) {
-      window.location.href = `/incident/${incident.id}`;
+      router.push(`/incident/${incident.id}`);
     }
   };
 
@@ -111,8 +113,8 @@ export default function DashboardPage() {
 
         {/* Empty state */}
         {!loading && filtered.length === 0 && (
-          <div className="text-center py-20 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl">
-            <Search className="w-8 h-8 mx-auto mb-3 text-[var(--color-text-dim)]" />
+          <div className="text-center py-20 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl card-shadow">
+            <Search className="w-12 h-12 mx-auto mb-3 text-[var(--color-text-dim)]" />
             <p className="text-[var(--color-text-muted)] mb-1">No incidents found</p>
             <p className="text-sm text-[var(--color-text-dim)]">
               {filter !== "all" ? "Try changing the filter" : "Click \"Investigate Now\" to start"}
@@ -126,7 +128,7 @@ export default function DashboardPage() {
             <Link
               key={incident.id}
               href={`/incident/${incident.id}`}
-              className="block bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 hover:border-[var(--color-border-bright)] transition group"
+              className="block bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 hover:border-[var(--color-border-bright)] hover:bg-[var(--color-surface-elevated)] transition group card-shadow"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-4">
@@ -174,10 +176,10 @@ export default function DashboardPage() {
               });
               const data = await res.json();
               if (data.incident_id) {
-                window.location.href = `/incident/${data.incident_id}`;
+                router.push(`/incident/${data.incident_id}`);
               }
             } catch {
-              alert("Demo failed — check your Perplexity API key");
+              alert("Demo failed \u2014 check your Perplexity API key");
             }
           }}
         />
