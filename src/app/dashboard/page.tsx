@@ -165,6 +165,21 @@ export default function DashboardPage() {
         <InvestigateModal
           onClose={() => setShowModal(false)}
           onSubmit={handleCreate}
+          onDemo={async (scenario) => {
+            try {
+              const res = await fetch("/api/demo/investigate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ scenario }),
+              });
+              const data = await res.json();
+              if (data.incident_id) {
+                window.location.href = `/incident/${data.incident_id}`;
+              }
+            } catch {
+              alert("Demo failed — check your Perplexity API key");
+            }
+          }}
         />
       )}
     </div>
