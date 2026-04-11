@@ -39,16 +39,18 @@ export default function Timeline({ incidentId, initialEvents = [] }: TimelinePro
 
   // Subscribe to Supabase Realtime for live event streaming
   useEffect(() => {
-    let channel: ReturnType<typeof import("@supabase/supabase-js").createClient extends (...args: unknown[]) => infer R ? R : never> | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let channel: any = null;
+    let supabaseClient: any = null;
 
     async function subscribe() {
       try {
         const { getSupabaseBrowserClient } = await import("@/lib/db");
-        const supabase = getSupabaseBrowserClient();
-        channel = supabase
+        supabaseClient = getSupabaseBrowserClient();
+        channel = supabaseClient
           .channel(`incident-timeline-${incidentId}`)
           .on(
-            "postgres_changes" as never,
+            "postgres_changes",
             {
               event: "INSERT",
               schema: "public",
@@ -57,7 +59,6 @@ export default function Timeline({ incidentId, initialEvents = [] }: TimelinePro
             },
             (payload: { new: IncidentEvent }) => {
               setEvents((prev) => {
-                // Deduplicate by id
                 if (prev.some((e) => e.id === payload.new.id)) return prev;
                 return [...prev, payload.new];
               });
@@ -65,17 +66,15 @@ export default function Timeline({ incidentId, initialEvents = [] }: TimelinePro
           )
           .subscribe();
       } catch {
-        // Supabase not configured — fall back to polling (handled by useIncident hook)
+        // Supabase not configured — fall back to polling
       }
     }
 
     subscribe();
 
     return () => {
-      if (channel) {
-        import("@/lib/db").then(({ getSupabaseBrowserClient }) => {
-          getSupabaseBrowserClient().removeChannel(channel as never);
-        });
+      if (channel && supabaseClient) {
+        supabaseClient.removeChannel(channel);
       }
     };
   }, [incidentId]);

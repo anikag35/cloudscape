@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/db";
 
-const supabase = getSupabaseClient();
-
-/** GET /api/incidents/[id] — full incident with events and remediations */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const supabase = getSupabaseClient();
   const { id } = await params;
 
   const [incidentRes, eventsRes, remediationsRes, postmortemRes] = await Promise.all([
@@ -29,11 +27,11 @@ export async function GET(
   });
 }
 
-/** PATCH /api/incidents/[id] — update incident status */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const supabase = getSupabaseClient();
   const { id } = await params;
   const updates = await req.json();
 
@@ -43,13 +41,7 @@ export async function PATCH(
     if (key in updates) filtered[key] = updates[key];
   }
 
-  const { data, error } = await supabase
-    .from("incidents")
-    .update(filtered)
-    .eq("id", id)
-    .select()
-    .single();
-
+  const { data, error } = await supabase.from("incidents").update(filtered).eq("id", id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
