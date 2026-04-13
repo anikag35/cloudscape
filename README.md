@@ -2,9 +2,7 @@
 
 > Your infrastructure breaks at 2am. Cloudscape figures out why before you finish your coffee.
 
-Cloudscape is an AI-powered incident investigation tool for AWS. When an alert fires, it autonomously pulls CloudWatch metrics, logs, and CloudTrail events, correlates them with real-time web research (AWS outages, known bugs), identifies the root cause, generates remediation commands, and writes a blameless post-mortem — all in under a minute.
-
-**Built for the Perplexity x Codelogy Hackathon — Track B**
+Cloudscape is an AI-powered incident investigation tool for AWS. When an alert fires, it autonomously pulls CloudWatch metrics, logs, and CloudTrail events, correlates them with real-time web research (AWS outages, known bugs), identifies the root cause, generates remediation commands, and writes a detailed post-mortem.
 
 ## How It Works
 
