@@ -2,7 +2,7 @@
 
 export function IncidentSkeleton() {
   return (
-    <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 animate-pulse">
+    <div className="card p-5 animate-pulse">
       <div className="flex items-start gap-4">
         <div className="w-2.5 h-2.5 rounded-full bg-[var(--color-border)] mt-1.5" />
         <div className="flex-1">
@@ -34,7 +34,7 @@ export function TimelineSkeleton() {
 
 export function RemediationSkeleton() {
   return (
-    <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 animate-pulse">
+    <div className="card p-5 animate-pulse">
       <div className="flex items-center justify-between mb-3">
         <div className="h-4 bg-[var(--color-border)] rounded w-2/3" />
         <div className="flex gap-2">
@@ -51,8 +51,8 @@ export function RemediationSkeleton() {
 
 export function StatSkeleton() {
   return (
-    <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 animate-pulse">
-      <div className="flex items-center gap-2 mb-2">
+    <div className="card p-5 animate-pulse">
+      <div className="flex items-center gap-2 mb-3">
         <div className="w-4 h-4 bg-[var(--color-border)] rounded" />
         <div className="h-3 bg-[var(--color-border)] rounded w-16" />
       </div>

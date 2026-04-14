@@ -16,27 +16,27 @@ export default function HealthOverview({
   connected,
 }: HealthOverviewProps) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
       <StatCard
-        icon={<Activity className="w-5 h-5" />}
+        icon={<Activity className="w-4 h-4" />}
         label="Active"
         value={activeIncidents.toString()}
         color={activeIncidents > 0 ? "var(--color-danger)" : "var(--color-success)"}
       />
       <StatCard
-        icon={<Server className="w-5 h-5" />}
+        icon={<Server className="w-4 h-4" />}
         label="Resolved Today"
         value={resolvedToday.toString()}
         color="var(--color-success)"
       />
       <StatCard
-        icon={<Database className="w-5 h-5" />}
+        icon={<Database className="w-4 h-4" />}
         label="Avg MTTR"
         value={mttr ? `${mttr}m` : "\u2014"}
         color="var(--color-accent)"
       />
       <StatCard
-        icon={<Globe className="w-5 h-5" />}
+        icon={<Globe className="w-4 h-4" />}
         label="AWS"
         value={connected ? "Connected" : "Not connected"}
         color={connected ? "var(--color-success)" : "var(--color-text-dim)"}
@@ -57,10 +57,10 @@ function StatCard({
   color: string;
 }) {
   return (
-    <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 card-shadow">
-      <div className="flex items-center gap-2 mb-2 text-[var(--color-text-dim)]">
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-3 text-[var(--color-text-muted)]">
         {icon}
-        <span className="text-xs uppercase tracking-wider">{label}</span>
+        <span className="text-xs font-medium uppercase tracking-wider">{label}</span>
       </div>
       <span className="text-xl font-bold font-mono" style={{ color }}>
         {value}

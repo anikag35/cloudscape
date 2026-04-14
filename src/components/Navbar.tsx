@@ -11,23 +11,28 @@ interface NavbarProps {
 
 export default function Navbar({ backHref, title, children }: NavbarProps) {
   return (
-    <nav className="flex items-center justify-between px-8 py-5 max-w-7xl mx-auto border-b border-[var(--color-border)]">
-      <div className="flex items-center gap-4">
-        {backHref && (
-          <Link href={backHref} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition">
-            <ArrowLeft className="w-5 h-5" />
+    <nav className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+      <div className="flex items-center justify-between max-w-7xl mx-auto px-6 sm:px-8 lg:px-10 h-16">
+        <div className="flex items-center gap-3">
+          {backHref && (
+            <Link
+              href={backHref}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg)] transition-all duration-150"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+          )}
+          <Link href="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)] flex items-center justify-center">
+              <Zap className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-lg font-extrabold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+              {title || "Cloudscape"}
+            </span>
           </Link>
-        )}
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)] flex items-center justify-center">
-            <Zap className="w-5 h-5 text-black" />
-          </div>
-          <span className="text-xl font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-            {title || "Cloudscape"}
-          </span>
-        </Link>
+        </div>
+        {children && <div className="flex items-center gap-3">{children}</div>}
       </div>
-      {children && <div className="flex items-center gap-3">{children}</div>}
     </nav>
   );
 }

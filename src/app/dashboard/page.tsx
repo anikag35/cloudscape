@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Zap, Plus, Activity, Clock, CheckCircle, AlertTriangle, Search } from "lucide-react";
+import { Plus, Activity, Search, Settings } from "lucide-react";
 import { useIncidents } from "@/hooks/useIncidents";
+import Navbar from "@/components/Navbar";
 import HealthOverview from "@/components/HealthOverview";
 import InvestigateModal from "@/components/InvestigateModal";
 import StatusBadge from "@/components/StatusBadge";
@@ -45,24 +46,17 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
-      {/* Nav */}
-      <nav className="flex items-center justify-between px-8 py-5 max-w-7xl mx-auto border-b border-[var(--color-border)]">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)] flex items-center justify-center">
-            <Zap className="w-5 h-5 text-black" />
-          </div>
-          <span className="text-xl font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-            Cloudscape
-          </span>
+      <Navbar>
+        <Link
+          href="/setup"
+          className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors duration-150"
+        >
+          <Settings className="w-4 h-4" />
+          <span className="hidden sm:inline">Settings</span>
         </Link>
-        <div className="flex items-center gap-4">
-          <Link href="/setup" className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
-            Settings
-          </Link>
-        </div>
-      </nav>
+      </Navbar>
 
-      <main className="max-w-5xl mx-auto px-8 py-8">
+      <main className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-10 py-10">
         {/* Health Overview */}
         <HealthOverview
           activeIncidents={activeCount}
@@ -71,22 +65,22 @@ export default function DashboardPage() {
           connected={true}
         />
 
-        {/* Header */}
+        {/* Header row */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <h1 className="text-2xl font-bold" style={{ fontFamily: "var(--font-display)" }}>
               Incidents
             </h1>
             {/* Filter tabs */}
-            <div className="flex items-center bg-[var(--color-surface)] rounded-lg p-0.5 ml-4">
+            <div className="flex items-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-1">
               {(["all", "active", "resolved"] as const).map((f) => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
-                  className={`text-xs px-3 py-1.5 rounded-md capitalize transition ${
+                  className={`text-xs px-3 py-1.5 rounded-lg capitalize font-medium transition-all duration-150 ${
                     filter === f
-                      ? "bg-[var(--color-surface-elevated)] text-[var(--color-text)]"
-                      : "text-[var(--color-text-dim)] hover:text-[var(--color-text-muted)]"
+                      ? "bg-[var(--color-bg)] text-[var(--color-text)] shadow-sm"
+                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                   }`}
                 >
                   {f} {f === "active" && activeCount > 0 && `(${activeCount})`}
@@ -96,7 +90,7 @@ export default function DashboardPage() {
           </div>
           <button
             onClick={() => setShowModal(true)}
-            className="bg-[var(--color-accent)] text-black px-4 py-2 rounded-lg text-sm font-medium hover:brightness-110 transition inline-flex items-center gap-2"
+            className="btn-primary btn-sm"
           >
             <Plus className="w-4 h-4" />
             Investigate Now
@@ -105,17 +99,17 @@ export default function DashboardPage() {
 
         {/* Loading state */}
         {loading && (
-          <div className="text-center py-20 text-[var(--color-text-dim)]">
-            <Activity className="w-6 h-6 mx-auto mb-3 animate-spin" />
-            <p className="text-sm">Loading incidents...</p>
+          <div className="card p-20 text-center">
+            <Activity className="w-6 h-6 mx-auto mb-3 text-[var(--color-text-dim)] animate-spin" />
+            <p className="text-sm text-[var(--color-text-muted)]">Loading incidents...</p>
           </div>
         )}
 
         {/* Empty state */}
         {!loading && filtered.length === 0 && (
-          <div className="text-center py-20 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl card-shadow">
-            <Search className="w-12 h-12 mx-auto mb-3 text-[var(--color-text-dim)]" />
-            <p className="text-[var(--color-text-muted)] mb-1">No incidents found</p>
+          <div className="card p-20 text-center">
+            <Search className="w-10 h-10 mx-auto mb-3 text-[var(--color-text-dim)]" />
+            <p className="text-[var(--color-text-muted)] font-medium mb-1">No incidents found</p>
             <p className="text-sm text-[var(--color-text-dim)]">
               {filter !== "all" ? "Try changing the filter" : "Click \"Investigate Now\" to start"}
             </p>
@@ -128,21 +122,21 @@ export default function DashboardPage() {
             <Link
               key={incident.id}
               href={`/incident/${incident.id}`}
-              className="block bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 hover:border-[var(--color-border-bright)] hover:bg-[var(--color-surface-elevated)] transition group card-shadow"
+              className="block card-interactive p-5 group"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-4">
                   <div
-                    className={`w-2.5 h-2.5 rounded-full mt-1.5 ${
+                    className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${
                       sevColors[incident.severity as keyof typeof sevColors] || "bg-[var(--color-sev2)]"
                     } ${incident.status !== "resolved" ? "pulse-live" : ""}`}
                   />
                   <div>
-                    <h3 className="font-medium group-hover:text-[var(--color-accent)] transition-colors">
+                    <h3 className="font-medium group-hover:text-[var(--color-accent)] transition-colors duration-150">
                       {incident.title}
                     </h3>
                     {incident.root_cause && (
-                      <p className="text-sm text-[var(--color-text-muted)] mt-1">
+                      <p className="text-sm text-[var(--color-text-muted)] mt-1 leading-relaxed">
                         {(incident.root_cause as { root_cause: string }).root_cause}
                       </p>
                     )}
@@ -150,7 +144,7 @@ export default function DashboardPage() {
                       <span className="uppercase tracking-wider font-medium">{incident.severity}</span>
                       <span>{new Date(incident.started_at).toLocaleString()}</span>
                       {incident.overall_score && (
-                        <span className="text-[var(--color-accent)]">{incident.overall_score}% confidence</span>
+                        <span className="text-[var(--color-accent)] font-medium">{incident.overall_score}% confidence</span>
                       )}
                     </div>
                   </div>
