@@ -8,11 +8,8 @@ import {
   Search,
   Terminal,
   FileText,
-  AlertTriangle,
   CheckCircle,
-  Activity,
-  Shield,
-  BarChart3,
+  AlertTriangle,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════
@@ -47,77 +44,97 @@ function useScrollReveal() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   HERO DASHBOARD PREVIEW (dark inset card)
+   HERO STACKED CARDS — Cloudscape workflow visualization
    ═══════════════════════════════════════════════════════ */
 
-function HeroDashboard() {
-  const events = [
-    { t: "03:42:00", text: "CloudWatch alarm: 5xx > 50/min", c: "text-[#ef4444]", I: AlertTriangle },
-    { t: "03:42:05", text: "Assuming read-only IAM role...", c: "text-[#888]", I: Shield },
-    { t: "03:42:08", text: "Collecting metrics, logs, CloudTrail...", c: "text-[#888]", I: Search },
-    { t: "03:42:15", text: "DB connections spiked 45 → 300", c: "text-[#f59e0b]", I: BarChart3 },
-    { t: "03:42:22", text: "Searching web for known AWS issues...", c: "text-[#888]", I: Activity },
-    { t: "03:42:28", text: "Root cause identified — 94% confidence", c: "text-[#f97316]", I: CheckCircle },
-    { t: "03:42:30", text: "3 remediation options ready", c: "text-[#f97316]", I: Terminal },
-  ];
-
+function HeroAppPreview() {
   return (
-    <div className="rounded-2xl overflow-hidden bg-[#1a1a2e] border border-[#2a2a40] shadow-lg">
-      {/* Chrome bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#2a2a40] bg-[#141428]">
-        <div className="flex items-center gap-2">
-          <div className="w-[9px] h-[9px] rounded-full bg-[#ff5f57]" />
-          <div className="w-[9px] h-[9px] rounded-full bg-[#febc2e]" />
-          <div className="w-[9px] h-[9px] rounded-full bg-[#28c840]" />
-          <span className="text-[10px] text-[#666] ml-2 font-mono">
-            cloudscape — live investigation
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-[6px] h-[6px] rounded-full bg-[#f97316] pulse-live" />
-          <span className="text-[9px] text-[#f97316] font-semibold tracking-widest uppercase">Live</span>
+    <div className="relative min-h-[420px] pt-2 pb-4">
+      {/* Card 1 — Signal detected */}
+      <div
+        className="relative rounded-2xl border border-[#e5e5e0] bg-white shadow-sm px-5 py-4 mb-[-12px] mx-4"
+        style={{ zIndex: 1 }}
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-xl bg-[#fef2f2] border border-[#fecaca] flex items-center justify-center flex-shrink-0 mt-0.5">
+              <AlertTriangle className="w-4 h-4 text-[#ef4444]" />
+            </div>
+            <div>
+              <div className="text-[10px] font-bold text-[#999] uppercase tracking-wider mb-1">Signal Detected</div>
+              <div className="text-[13px] font-semibold text-[#1a1a1a] leading-snug">Elevated 5xx errors on prod-api</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0 mt-1">
+            <span className="w-2 h-2 rounded-full bg-[#f97316] pulse-live" />
+            <span className="text-[9px] font-semibold text-[#f97316] uppercase tracking-wider">Active</span>
+          </div>
         </div>
       </div>
 
-      <div className="p-4 text-white">
-        {/* Incident header */}
-        <div className="flex items-start justify-between mb-3">
-          <div>
+      {/* Card 2 — Evidence collected */}
+      <div
+        className="relative rounded-2xl border border-[#e5e5e0] bg-white shadow-md px-5 py-4 mb-[-12px] mx-2"
+        style={{ zIndex: 2 }}
+      >
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-xl bg-[#eff6ff] border border-[#bfdbfe] flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Search className="w-4 h-4 text-[#3b82f6]" />
+          </div>
+          <div className="flex-1">
+            <div className="text-[10px] font-bold text-[#999] uppercase tracking-wider mb-1">Evidence Collected</div>
+            <div className="text-[13px] font-medium text-[#1a1a1a] leading-snug mb-2.5">CloudWatch metrics, CloudTrail events, deployment diff</div>
+            <div className="flex items-center gap-1.5">
+              {["CloudWatch", "CloudTrail", "Web Search"].map((s) => (
+                <span key={s} className="text-[9px] font-medium text-[#6b6b6b] bg-[#f5f5f0] border border-[#e5e5e0] rounded-full px-2 py-0.5">
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Card 3 — Root cause (hero card, most prominent) */}
+      <div
+        className="relative rounded-2xl border-2 border-[#fdba74] bg-[#fff7ed] shadow-lg px-5 py-5 mb-[-12px]"
+        style={{ zIndex: 3 }}
+      >
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[#f97316] flex items-center justify-center flex-shrink-0 mt-0.5">
+            <CheckCircle className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#ef4444]/20 text-[#ef4444]">SEV-1</span>
-              <span className="text-[9px] text-[#555] font-mono">INC-2847</span>
+              <span className="text-[10px] font-bold text-[#f97316] uppercase tracking-wider">Root Cause Identified</span>
+              <span className="text-[9px] font-bold text-[#f97316] bg-white border border-[#fdba74] rounded-full px-2 py-0.5">94% confidence</span>
             </div>
-            <h3 className="text-xs font-semibold text-[#ddd]">5xx errors &gt; 50/min on prod-api ALB</h3>
-          </div>
-          <div className="text-right flex-shrink-0 ml-3">
-            <div className="text-[8px] text-[#555] uppercase tracking-wider">Confidence</div>
-            <div className="text-base font-bold text-[#f97316] font-mono">94%</div>
-          </div>
-        </div>
-
-        {/* Root cause */}
-        <div className="rounded-lg border border-[#f97316]/20 bg-[#f97316]/5 p-2.5 mb-3">
-          <div className="flex items-start gap-2">
-            <CheckCircle className="w-3 h-3 text-[#f97316] mt-0.5 flex-shrink-0" />
-            <div>
-              <div className="text-[8px] text-[#f97316] font-bold uppercase tracking-widest mb-0.5">Root Cause</div>
-              <div className="text-[10px] text-[#999] leading-relaxed">
-                ECS auto-scale created 11 new tasks, exhausting RDS max_connections (200).
-              </div>
+            <div className="text-[14px] font-semibold text-[#1a1a1a] leading-snug">
+              ECS scale-out exhausted RDS connections
+            </div>
+            <div className="text-[12px] text-[#6b6b6b] leading-relaxed mt-1">
+              Auto-scaling created 11 new ECS tasks, overwhelming the RDS max_connections limit of 200.
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Timeline */}
-        <div className="space-y-[3px]">
-          {events.slice(0, 5).map((ev) => (
-            <div key={ev.t} className="flex items-center gap-2">
-              <span className="text-[9px] text-[#555] w-[46px] flex-shrink-0 font-mono">{ev.t}</span>
-              <ev.I className={`w-2.5 h-2.5 flex-shrink-0 ${ev.c}`} />
-              <span className={`text-[9px] leading-tight ${ev.c}`}>{ev.text}</span>
+      {/* Card 4 — Remediation generated */}
+      <div
+        className="relative rounded-2xl border border-[#e5e5e0] bg-white shadow-lg px-5 py-4 mx-2"
+        style={{ zIndex: 4 }}
+      >
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-xl bg-[#f0fdf4] border border-[#bbf7d0] flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Terminal className="w-4 h-4 text-[#22c55e]" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-[10px] font-bold text-[#999] uppercase tracking-wider">Remediation Generated</div>
+              <span className="text-[9px] font-medium text-[#22c55e] bg-[#f0fdf4] border border-[#bbf7d0] rounded-full px-2 py-0.5">Ready to apply</span>
             </div>
-          ))}
-          <div className="text-[9px] text-[#444] pl-[58px]">+ 2 more events...</div>
+            <div className="text-[13px] font-medium text-[#1a1a1a] leading-snug">Increase max_connections to 500 and cap ECS desired count</div>
+          </div>
         </div>
       </div>
     </div>
@@ -213,7 +230,7 @@ export default function LandingPage() {
 
             {/* Right: dashboard preview */}
             <div className="animate-fade-up-d4 lg:pl-4">
-              <HeroDashboard />
+              <HeroAppPreview />
             </div>
           </div>
         </div>
