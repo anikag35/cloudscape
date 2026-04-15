@@ -182,7 +182,3 @@ Cloudscape uses three Perplexity Agent API calls per investigation:
 2. **Remediation Generation** (`sonar-reasoning-pro`) — Given root cause, searches for AWS best practices and current pricing, generates ranked fix options with CLI commands and Terraform code.
 
 3. **Post-Mortem** (`sonar-pro`) — Compiles timeline, root cause, and remediations into a blameless Google SRE-format post-mortem document.
-
-## License
-
-MIT
